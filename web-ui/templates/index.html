@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentCore Deployment Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card h2 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-ecs {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .badge-eks {
+            background: #4ecdc4;
+            color: white;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ee5a52;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn-success {
+            background: #51cf66;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #40c057;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .output {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .output.empty {
+            color: #999;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .log-info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .log-success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .log-error {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        .log-warning {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .timestamp {
+            color: #666;
+            font-size: 11px;
+            margin-right: 10px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-running {
+            background: #51cf66;
+            box-shadow: 0 0 10px #51cf66;
+        }
+
+        .status-stopped {
+            background: #ff6b6b;
+        }
+
+        .status-pending {
+            background: #ffd43b;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #1976d2;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .info-box p {
+            color: #1976d2;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 AgentCore Deployment Dashboard</h1>
+            <p>Manage ECS and EKS deployments using AWS Bedrock AgentCore</p>
+        </div>
+
+        <div class="grid">
+            <!-- ECS Operations -->
+            <div class="card">
+                <h2>
+                    <span class="badge badge-ecs">ECS</span>
+                    ECS Express Mode
+                </h2>
+
+                <div class="info-box">
+                    <p><strong>Agent:</strong> {{ config.ecs_agent_arn.split('/')[-1] }}</p>
+                    <p><strong>Region:</strong> {{ config.agent_region }}</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Target Region</label>
+                    <select id="ecs-region">
+                        <option value="us-west-2">us-west-2</option>
+                        <option value="us-east-1">us-east-1</option>
+                        <option value="eu-north-1" selected>eu-north-1</option>
+                        <option value="eu-west-1">eu-west-1</option>
+                    </select>
+                </div>
+
+                <!-- Chat Interface -->
+                <div style="margin-top: 20px;">
+                    <div class="form-group">
+                        <label>💬 Chat with ECS Agent</label>
+                        <textarea id="ecs-chat-input" rows="3" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;" placeholder="Example: Deploy blog-app to eu-north-1"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="ecsChatSend()">
+                        💬 Send Message
+                    </button>
+                </div>
+
+                <div id="ecs-output" class="output empty">
+                    Start chatting to deploy or manage services.
+                </div>
+            </div>
+
+            <!-- EKS Operations -->
+            <div class="card">
+                <h2>
+                    <span class="badge badge-eks">EKS</span>
+                    EKS Kubernetes
+                </h2>
+
+                <div class="info-box">
+                    <p><strong>Agent:</strong> {{ config.eks_agent_arn.split('/')[-1] }}</p>
+                    <p><strong>Region:</strong> {{ config.agent_region }}</p>
+                </div>
+
+                <div class="form-group">
+                    <label>Cluster Name</label>
+                    <input type="text" id="eks-cluster" value="ec2-eks-migration" placeholder="e.g., ec2-eks-migration">
+                </div>
+
+                <div class="form-group">
+                    <label>Cluster Region</label>
+                    <select id="eks-region">
+                        <option value="us-west-2">us-west-2</option>
+                        <option value="us-east-1">us-east-1</option>
+                        <option value="eu-north-1" selected>eu-north-1</option>
+                        <option value="eu-west-1">eu-west-1</option>
+                    </select>
+                </div>
+
+                <!-- Chat Interface -->
+                <div style="margin-top: 20px;">
+                    <div class="form-group">
+                        <label>💬 Chat with EKS Agent</label>
+                        <textarea id="eks-chat-input" rows="3" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;" placeholder="Example: Deploy blog-app-v5 to ec2-eks-migration"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="eksChatSend()">
+                        💬 Send Message
+                    </button>
+                </div>
+
+                <div id="eks-output" class="output empty">
+                    Start chatting to deploy or manage applications.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showOutput(elementId, content, type = 'info') {
+            const output = document.getElementById(elementId);
+            output.classList.remove('empty');
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const logClass = `log-${type}`;
+            
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${logClass}`;
+            entry.innerHTML = `<span class="timestamp">${timestamp}</span>${content}`;
+            
+            output.appendChild(entry);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput(elementId) {
+            const output = document.getElementById(elementId);
+            output.innerHTML = '';
+            output.classList.add('empty');
+            output.textContent = 'Start chatting to deploy or manage your applications.';
+        }
+
+        // Chat functions
+        async function ecsChatSend() {
+            const message = document.getElementById('ecs-chat-input').value;
+            const region = document.getElementById('ecs-region').value;
+            
+            if (!message.trim()) {
+                alert('Please enter a message');
+                return;
+            }
+            
+            clearOutput('ecs-output');
+            showOutput('ecs-output', `🧑 You: ${message}`, 'info');
+            showOutput('ecs-output', '🤖 Agent is thinking...', 'info');
+            
+            try {
+                const response = await fetch('/api/ecs/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message, region})
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    showOutput('ecs-output', `🤖 Agent: ${data.result}`, 'success');
+                } else {
+                    // Handle both 'message' and 'result' fields for errors
+                    const errorMsg = data.message || data.result || 'Unknown error';
+                    showOutput('ecs-output', `Error: ${errorMsg}`, 'error');
+                }
+            } catch (error) {
+                showOutput('ecs-output', `Error: ${error.message}`, 'error');
+            }
+            
+            // Clear input
+            document.getElementById('ecs-chat-input').value = '';
+        }
+
+        async function eksChatSend() {
+            const message = document.getElementById('eks-chat-input').value;
+            const cluster = document.getElementById('eks-cluster').value;
+            const region = document.getElementById('eks-region').value;
+            
+            if (!message.trim()) {
+                alert('Please enter a message');
+                return;
+            }
+            
+            clearOutput('eks-output');
+            showOutput('eks-output', `🧑 You: ${message}`, 'info');
+            showOutput('eks-output', '🤖 Agent is thinking...', 'info');
+            
+            try {
+                const response = await fetch('/api/eks/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message, cluster, region})
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    showOutput('eks-output', `🤖 Agent: ${data.result}`, 'success');
+                } else {
+                    // Handle both 'message' and 'result' fields for errors
+                    const errorMsg = data.message || data.result || 'Unknown error';
+                    showOutput('eks-output', `Error: ${errorMsg}`, 'error');
+                }
+            } catch (error) {
+                showOutput('eks-output', `Error: ${error.message}`, 'error');
+            }
+            
+            // Clear input
+            document.getElementById('eks-chat-input').value = '';
+        }
+
+        // Allow Enter key to send messages
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('ecs-chat-input').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    ecsChatSend();
+                }
+            });
+            
+            document.getElementById('eks-chat-input').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    eksChatSend();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

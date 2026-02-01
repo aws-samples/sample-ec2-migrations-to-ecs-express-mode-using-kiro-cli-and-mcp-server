@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Blog with Cognito Auth</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .auth-container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .secondary-btn {
+            background-color: #6c757d;
+        }
+        .secondary-btn:hover {
+            background-color: #545b62;
+        }
+        .post {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .post h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .post img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+        .user-info {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: #e9ecef;
+            border: none;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Secure Blog with Cognito Authentication</h1>
+        
+        <!-- Authentication Section -->
+        <div id="auth-section" class="auth-container">
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('signin')">Sign In</button>
+                <button class="tab" onclick="showTab('signup')">Sign Up</button>
+            </div>
+            
+            <!-- Sign In Form -->
+            <div id="signin-form">
+                <h2>Sign In</h2>
+                <div class="form-group">
+                    <label for="signin-email">Email:</label>
+                    <input type="email" id="signin-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="signin-password">Password:</label>
+                    <input type="password" id="signin-password" required>
+                </div>
+                <button onclick="signIn()">Sign In</button>
+                <div id="signin-message"></div>
+            </div>
+            
+            <!-- Sign Up Form -->
+            <div id="signup-form" class="hidden">
+                <h2>Sign Up</h2>
+                <div class="form-group">
+                    <label for="signup-name">Name:</label>
+                    <input type="text" id="signup-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-email">Email:</label>
+                    <input type="email" id="signup-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password:</label>
+                    <input type="password" id="signup-password" required>
+                </div>
+                <button onclick="signUp()">Sign Up</button>
+                <div id="signup-message"></div>
+            </div>
+            
+            <!-- Email Confirmation Form -->
+            <div id="confirm-form" class="hidden">
+                <h2>Confirm Email</h2>
+                <p>Please check your email and enter the confirmation code:</p>
+                <div class="form-group">
+                    <label for="confirm-code">Confirmation Code:</label>
+                    <input type="text" id="confirm-code" required>
+                </div>
+                <button onclick="confirmEmail()">Confirm</button>
+                <div id="confirm-message"></div>
+            </div>
+        </div>
+        
+        <!-- Main App Section -->
+        <div id="app-section" class="hidden">
+            <div class="user-info">
+                <span id="user-email"></span>
+                <button onclick="signOut()" class="secondary-btn" style="float: right; width: auto; padding: 5px 15px;">Sign Out</button>
+            </div>
+            
+            <h2>Create New Post</h2>
+            <div class="form-group">
+                <label for="title">Title:</label>
+                <input type="text" id="title" placeholder="Enter post title">
+            </div>
+            <div class="form-group">
+                <label for="content">Content:</label>
+                <textarea id="content" rows="4" placeholder="Write your post content here..."></textarea>
+            </div>
+            <div class="form-group">
+                <label for="image">Image (optional):</label>
+                <input type="file" id="image" accept="image/*">
+            </div>
+            <button onclick="createPost()">Create Post</button>
+            <div id="create-message"></div>
+            
+            <h2>Blog Posts</h2>
+            <div id="posts-container">
+                <p>Loading posts...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let accessToken = localStorage.getItem('accessToken');
+        let userEmail = localStorage.getItem('userEmail');
+        let pendingConfirmationEmail = null;
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            if (accessToken) {
+                showAppSection();
+                loadPosts();
+            }
+        });
+        
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('[id$="-form"]').forEach(f => f.classList.add('hidden'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tab + '-form').classList.remove('hidden');
+        }
+        
+        async function signUp() {
+            const name = document.getElementById('signup-name').value;
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            const messageDiv = document.getElementById('signup-message');
+            
+            try {
+                const response = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="success">Account created! Please check your email for confirmation code.</div>';
+                    pendingConfirmationEmail = email;
+                    document.getElementById('signup-form').classList.add('hidden');
+                    document.getElementById('confirm-form').classList.remove('hidden');
+                } else {
+                    messageDiv.innerHTML = `<div class="error">${data.error}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error">Network error: ${error.message}</div>`;
+            }
+        }
+        
+        async function confirmEmail() {
+            const confirmationCode = document.getElementById('confirm-code').value;
+            const messageDiv = document.getElementById('confirm-message');
+            
+            try {
+                const response = await fetch('/api/auth/confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: pendingConfirmationEmail, 
+                        confirmationCode 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="success">Email confirmed! You can now sign in.</div>';
+                    setTimeout(() => {
+                        document.getElementById('confirm-form').classList.add('hidden');
+                        document.getElementById('signin-form').classList.remove('hidden');
+                        showTab('signin');
+                    }, 2000);
+                } else {
+                    messageDiv.innerHTML = `<div class="error">${data.error}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error">Network error: ${error.message}</div>`;
+            }
+        }
+        
+        async function signIn() {
+            const email = document.getElementById('signin-email').value;
+            const password = document.getElementById('signin-password').value;
+            const messageDiv = document.getElementById('signin-message');
+            
+            try {
+                const response = await fetch('/api/auth/signin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    accessToken = data.accessToken;
+                    userEmail = email;
+                    localStorage.setItem('accessToken', accessToken);
+                    localStorage.setItem('userEmail', userEmail);
+                    
+                    showAppSection();
+                    loadPosts();
+                } else {
+                    messageDiv.innerHTML = `<div class="error">${data.error}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error">Network error: ${error.message}</div>`;
+            }
+        }
+        
+        function signOut() {
+            accessToken = null;
+            userEmail = null;
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('userEmail');
+            
+            document.getElementById('auth-section').classList.remove('hidden');
+            document.getElementById('app-section').classList.add('hidden');
+        }
+        
+        function showAppSection() {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('app-section').classList.remove('hidden');
+            document.getElementById('user-email').textContent = userEmail;
+        }
+        
+        async function loadPosts() {
+            try {
+                const response = await fetch('/api/posts', {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                
+                if (response.ok) {
+                    const posts = await response.json();
+                    displayPosts(posts);
+                } else if (response.status === 401) {
+                    signOut();
+                } else {
+                    document.getElementById('posts-container').innerHTML = '<p>Error loading posts</p>';
+                }
+            } catch (error) {
+                document.getElementById('posts-container').innerHTML = '<p>Network error loading posts</p>';
+            }
+        }
+        
+        function displayPosts(posts) {
+            const container = document.getElementById('posts-container');
+            
+            if (posts.length === 0) {
+                container.innerHTML = '<p>No posts yet. Create the first one!</p>';
+                return;
+            }
+            
+            container.innerHTML = posts.map(post => `
+                <div class="post">
+                    <h3>${post.title}</h3>
+                    <p>${post.content}</p>
+                    ${post.imageUrl ? `<img src="${post.imageUrl}" alt="Post image">` : ''}
+                    <small>Created: ${new Date(post.createdAt).toLocaleString()}</small>
+                </div>
+            `).join('');
+        }
+        
+        async function createPost() {
+            const title = document.getElementById('title').value;
+            const content = document.getElementById('content').value;
+            const imageFile = document.getElementById('image').files[0];
+            const messageDiv = document.getElementById('create-message');
+            
+            if (!title || !content) {
+                messageDiv.innerHTML = '<div class="error">Please fill in title and content</div>';
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('title', title);
+                formData.append('content', content);
+                if (imageFile) {
+                    formData.append('image', imageFile);
+                }
+                
+                const response = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="success">Post created successfully!</div>';
+                    document.getElementById('title').value = '';
+                    document.getElementById('content').value = '';
+                    document.getElementById('image').value = '';
+                    loadPosts();
+                    setTimeout(() => messageDiv.innerHTML = '', 3000);
+                } else if (response.status === 401) {
+                    signOut();
+                } else {
+                    const data = await response.json();
+                    messageDiv.innerHTML = `<div class="error">${data.error}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error">Network error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

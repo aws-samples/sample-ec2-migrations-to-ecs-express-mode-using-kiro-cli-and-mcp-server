@@ -1,0 +1,178 @@
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.eslintcache
+.node_repl_history
+*.tgz
+.yarn-integrity
+
+# Environment Variables and API Keys
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+*.key
+api_keys.txt
+secrets.txt
+
+# AWS CDK
+cdk.out/
+.cdk.staging/
+cdk.context.json
+
+# AWS SAM
+.aws-sam/
+samconfig.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+**/lib/python*/
+**/lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# TypeScript (only in CDK infrastructure directory)
+infrastructure/cdk/**/*.js
+infrastructure/cdk/**/*.d.ts
+!infrastructure/cdk/**/*.config.js
+infrastructure/cdk/**/*.js.map
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# Build Outputs
+dist/
+build/
+out/
+
+# Docker
+.dockerignore
+
+# Application Specific
+uploads/*
+!uploads/.gitkeep
+*.png
+*.jpg
+*.jpeg
+*.gif
+!diagram_*.png
+!docs/diagrams/*.png
+!docs/diagrams/*.jpg
+
+# Documentation Duplicates
+*copy.md
+*.docx
+
+# Secrets and Credentials
+*.pem
+*.key
+*.cert
+*.crt
+credentials
+secrets.json
+config.json
+
+# Terraform (if used)
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# CloudFormation
+packaged.yaml
+packaged.yml
+
+# Mac
+.AppleDouble
+.LSOverride
+
+# Windows
+desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+deploy_to_ecs.py
+# Security: Exclude files with real credentials from git
+*.env
+*.env.local
+*.env.*.local
+.bedrock_agentcore.yaml.backup
+holmesscan.json
+/flattened_project

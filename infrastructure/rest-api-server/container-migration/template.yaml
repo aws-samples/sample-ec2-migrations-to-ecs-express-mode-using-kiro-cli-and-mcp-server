@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Container Migration MCP Server - Serverless deployment'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+Resources:
+  # Lambda Function
+  # Security Notes:
+  # - Concurrency limit not set: Using account-level limits for cost control
+  # - DLQ not configured: Using CloudWatch Logs for error tracking and monitoring
+  # - VPC not configured: Function does not require access to VPC resources
+  # - KMS encryption not configured: No sensitive environment variables stored
+  ContainerMigrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'container-migration-mcp-${Environment}'
+      CodeUri: ./
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.11
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+      Policies:
+        - AmazonECS_FullAccess
+        - AmazonEC2ContainerRegistryFullAccess
+        - CloudWatchLogsFullAccess
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - sts:GetCallerIdentity
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - iam:PassRole
+              Resource: 
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole'
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ecsInfrastructureRoleForExpressServices'
+            - Effect: Allow
+              Action:
+                - iam:GetRole
+                - iam:CreateRole
+                - iam:AttachRolePolicy
+                - iam:PutRolePolicy
+              Resource: 
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ecs*'
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/container-migration-*'
+            - Effect: Allow
+              Action:
+                - cloudformation:CreateStack
+                - cloudformation:UpdateStack
+                - cloudformation:DeleteStack
+                - cloudformation:DescribeStacks
+                - cloudformation:DescribeStackEvents
+                - cloudformation:DescribeStackResources
+                - cloudformation:GetTemplate
+                - cloudformation:ValidateTemplate
+              Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/container-migration-*/*'
+            - Effect: Allow
+              Action:
+                - elasticloadbalancing:CreateLoadBalancer
+                - elasticloadbalancing:DeleteLoadBalancer
+                - elasticloadbalancing:DescribeLoadBalancers
+                - elasticloadbalancing:CreateTargetGroup
+                - elasticloadbalancing:DeleteTargetGroup
+                - elasticloadbalancing:DescribeTargetGroups
+                - elasticloadbalancing:CreateListener
+                - elasticloadbalancing:DeleteListener
+                - elasticloadbalancing:DescribeListeners
+                - elasticloadbalancing:ModifyLoadBalancerAttributes
+                - elasticloadbalancing:ModifyTargetGroupAttributes
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - ec2:DescribeVpcs
+                - ec2:DescribeSubnets
+                - ec2:DescribeSecurityGroups
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - ec2:CreateSecurityGroup
+                - ec2:AuthorizeSecurityGroupIngress
+                - ec2:AuthorizeSecurityGroupEgress
+                - ec2:RevokeSecurityGroupIngress
+                - ec2:RevokeSecurityGroupEgress
+                - ec2:DeleteSecurityGroup
+                - ec2:CreateTags
+              Resource: 
+                - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*'
+                - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/*'
+      Events:
+        # API Gateway endpoints with API Key authentication
+        ApiProxy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+            Auth:
+              ApiKeyRequired: true
+        ApiRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+            Auth:
+              ApiKeyRequired: true
+
+  # API Key for authentication
+  ApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: !Sub 'container-migration-mcp-key-${Environment}'
+      Description: 'API Key for Container Migration MCP Server'
+      Enabled: true
+
+  # Usage Plan
+  UsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      UsagePlanName: !Sub 'container-migration-mcp-plan-${Environment}'
+      Description: 'Usage plan for Container Migration MCP Server'
+      ApiStages:
+        - ApiId: !Ref ServerlessRestApi
+          Stage: Prod
+
+  # Link API Key to Usage Plan
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlan
+
+Outputs:
+  ApiUrl:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiUrl'
+  
+  ApiKey:
+    Description: 'API Key for authentication'
+    Value: !Ref ApiKey
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiKey'
+  
+  FunctionName:
+    Description: 'Lambda function name'
+    Value: !Ref ContainerMigrationFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-FunctionName'

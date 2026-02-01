@@ -1,0 +1,19 @@
+{
+  "name": "container-migration-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server for automating containerization in EC2 to ECS Express Mode migration",
+  "main": "server.py",
+  "scripts": {
+    "test": "./test.sh",
+    "start": "python3 server.py"
+  },
+  "keywords": ["mcp", "docker", "aws", "ecs", "containerization"],
+  "author": "AWS Migration Team",
+  "license": "MIT",
+  "dependencies": {
+    "mcp": "^1.0.0"
+  },
+  "engines": {
+    "python": ">=3.8"
+  }
+}

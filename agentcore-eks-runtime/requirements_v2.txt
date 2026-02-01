@@ -1,0 +1,15 @@
+# AgentCore EKS Deployment Agent V2 - Pure Python SDK Implementation
+# No CLI dependencies required
+
+# MCP Protocol
+mcp>=1.0.0
+
+# AWS SDK - Replaces AWS CLI
+boto3>=1.34.0
+botocore>=1.34.0
+
+# Kubernetes Python Client - Replaces kubectl
+kubernetes>=28.1.0
+
+# Optional: For enhanced functionality
+pyyaml>=6.0.1  # For YAML parsing if needed

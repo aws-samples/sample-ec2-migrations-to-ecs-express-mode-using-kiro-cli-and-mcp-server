@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Blog with Cognito Auth</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .auth-container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .secondary-btn {
+            background-color: #6c757d;
+        }
+        .secondary-btn:hover {
+            background-color: #545b62;
+        }
+        .post {
+            border: 1px solid #ddd;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .post h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .post-meta {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .post img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        .hidden {
+            display: none;
+        }
+        .error {
+            color: #dc3545;
+            margin-top: 10px;
+        }
+        .success {
+            color: #28a745;
+            margin-top: 10px;
+        }
+        .user-info {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            float: right;
+            width: auto;
+            padding: 5px 15px;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+        .post-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            width: auto;
+            padding: 8px 20px;
+            font-size: 14px;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        .edit-btn {
+            background-color: #ffc107;
+            width: auto;
+            padding: 8px 20px;
+            font-size: 14px;
+        }
+        .edit-btn:hover {
+            background-color: #e0a800;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Secure Blog with Cognito Authentication</h1>
+        
+        <!-- Authentication Section -->
+        <div id="auth-section" class="auth-container">
+            <div id="login-form">
+                <h2>Sign In</h2>
+                <div class="form-group">
+                    <label for="login-email">Email:</label>
+                    <input type="email" id="login-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password:</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <button onclick="signIn()">Sign In</button>
+                <button class="secondary-btn" onclick="showSignUp()">Create Account</button>
+                <div id="login-error" class="error"></div>
+            </div>
+            
+            <div id="signup-form" class="hidden">
+                <h2>Create Account</h2>
+                <div class="form-group">
+                    <label for="signup-email">Email:</label>
+                    <input type="email" id="signup-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password:</label>
+                    <input type="password" id="signup-password" required>
+                </div>
+                <button onclick="signUp()">Create Account</button>
+                <button class="secondary-btn" onclick="showSignIn()">Back to Sign In</button>
+                <div id="signup-error" class="error"></div>
+                <div id="signup-success" class="success"></div>
+            </div>
+            
+            <div id="confirm-form" class="hidden">
+                <h2>Confirm Email</h2>
+                <p>Please enter the confirmation code sent to your email:</p>
+                <div class="form-group">
+                    <label for="confirm-code">Confirmation Code:</label>
+                    <input type="text" id="confirm-code" required>
+                </div>
+                <button onclick="confirmSignUp()">Confirm</button>
+                <div id="confirm-error" class="error"></div>
+            </div>
+        </div>
+        
+        <!-- Main App Section -->
+        <div id="app-section" class="hidden">
+            <div class="user-info">
+                <span>Welcome, <strong id="user-email"></strong>!</span>
+                <button class="logout-btn" onclick="signOut()">Sign Out</button>
+                <div style="clear: both;"></div>
+            </div>
+            
+            <div class="form-group">
+                <h3>Create New Post</h3>
+                <label for="post-title">Title:</label>
+                <input type="text" id="post-title" placeholder="Enter post title">
+            </div>
+            <div class="form-group">
+                <label for="post-content">Content:</label>
+                <textarea id="post-content" rows="4" placeholder="Enter post content"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="post-image">Image (optional):</label>
+                <input type="file" id="post-image" accept="image/*">
+            </div>
+            <button onclick="createPost()">Create Post</button>
+            <div id="post-error" class="error"></div>
+            <div id="post-success" class="success"></div>
+            
+            <h3>Blog Posts</h3>
+            <div id="posts-container"></div>
+        </div>
+    </div>
+    
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1490.0.min.js"></script>
+    <script>
+        // Set default region immediately to prevent "Missing region in config" error
+        AWS.config.region = 'us-west-2';
+        
+        let cognitoConfig = null;
+        let currentUser = null;
+        let accessToken = null;
+        
+        // Initialize app
+        window.onload = async function() {
+            // Check health endpoint for Cognito config
+            try {
+                const response = await fetch('/health');
+                const health = await response.json();
+                
+                if (health.cognito && health.clientId) {
+                    cognitoConfig = {
+                        userPoolId: health.userPoolId,
+                        clientId: health.clientId,
+                        region: health.region || 'us-west-2'
+                    };
+                    
+                    console.log('Cognito configured:', cognitoConfig);
+                    
+                    // Check for existing session
+                    const token = localStorage.getItem('accessToken');
+                    const userEmail = localStorage.getItem('userEmail');
+                    if (token && userEmail) {
+                        accessToken = token;
+                        currentUser = { email: userEmail };
+                        showApp();
+                        loadPosts();
+                    }
+                } else {
+                    console.warn('Cognito not configured, running in demo mode');
+                    // No Cognito, skip auth
+                    currentUser = { email: 'anonymous@example.com' };
+                    showApp();
+                    loadPosts();
+                }
+            } catch (error) {
+                console.error('Failed to check health:', error);
+                // Fallback to no auth
+                currentUser = { email: 'anonymous@example.com' };
+                showApp();
+                loadPosts();
+            }
+        };
+        
+        function showSignUp() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('signup-form').classList.remove('hidden');
+            clearErrors();
+        }
+        
+        function showSignIn() {
+            document.getElementById('signup-form').classList.add('hidden');
+            document.getElementById('confirm-form').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+            clearErrors();
+        }
+        
+        function clearErrors() {
+            document.getElementById('login-error').textContent = '';
+            document.getElementById('signup-error').textContent = '';
+            document.getElementById('signup-success').textContent = '';
+            document.getElementById('confirm-error').textContent = '';
+        }
+        
+        async function signUp() {
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            
+            if (!cognitoConfig) {
+                document.getElementById('signup-error').textContent = 'Cognito not configured';
+                return;
+            }
+            
+            try {
+                AWS.config.region = cognitoConfig.region;
+                const cognito = new AWS.CognitoIdentityServiceProvider({region: cognitoConfig.region});
+                
+                const params = {
+                    ClientId: cognitoConfig.clientId,
+                    Username: email,
+                    Password: password,
+                    UserAttributes: [
+                        { Name: 'email', Value: email }
+                    ]
+                };
+                
+                await cognito.signUp(params).promise();
+                document.getElementById('signup-success').textContent = 'Account created! Please check your email for confirmation code.';
+                document.getElementById('signup-form').classList.add('hidden');
+                document.getElementById('confirm-form').classList.remove('hidden');
+                window.pendingEmail = email;
+            } catch (error) {
+                document.getElementById('signup-error').textContent = error.message || 'Sign up failed';
+            }
+        }
+        
+        async function confirmSignUp() {
+            const code = document.getElementById('confirm-code').value;
+            
+            if (!cognitoConfig || !window.pendingEmail) {
+                document.getElementById('confirm-error').textContent = 'Invalid state';
+                return;
+            }
+            
+            try {
+                const cognito = new AWS.CognitoIdentityServiceProvider({region: cognitoConfig.region});
+                
+                const params = {
+                    ClientId: cognitoConfig.clientId,
+                    Username: window.pendingEmail,
+                    ConfirmationCode: code
+                };
+                
+                await cognito.confirmSignUp(params).promise();
+                alert('Email confirmed! You can now sign in.');
+                showSignIn();
+            } catch (error) {
+                document.getElementById('confirm-error').textContent = error.message || 'Confirmation failed';
+            }
+        }
+        
+        async function signIn() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            if (!cognitoConfig) {
+                // No Cognito, simulate login
+                accessToken = 'demo-token';
+                currentUser = { email: email };
+                localStorage.setItem('accessToken', accessToken);
+                localStorage.setItem('userEmail', email);
+                showApp();
+                loadPosts();
+                return;
+            }
+            
+            try {
+                AWS.config.region = cognitoConfig.region;
+                const cognito = new AWS.CognitoIdentityServiceProvider({region: cognitoConfig.region});
+                
+                const params = {
+                    ClientId: cognitoConfig.clientId,
+                    AuthFlow: 'USER_PASSWORD_AUTH',
+                    AuthParameters: {
+                        USERNAME: email,
+                        PASSWORD: password
+                    }
+                };
+                
+                const result = await cognito.initiateAuth(params).promise();
+                accessToken = result.AuthenticationResult.AccessToken;
+                currentUser = { email: email };
+                
+                localStorage.setItem('accessToken', accessToken);
+                localStorage.setItem('userEmail', email);
+                
+                showApp();
+                loadPosts();
+            } catch (error) {
+                document.getElementById('login-error').textContent = error.message || 'Sign in failed';
+            }
+        }
+        
+        function signOut() {
+            accessToken = null;
+            currentUser = null;
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('userEmail');
+            
+            document.getElementById('app-section').classList.add('hidden');
+            document.getElementById('auth-section').classList.remove('hidden');
+            showSignIn();
+        }
+        
+        function showApp() {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('app-section').classList.remove('hidden');
+            document.getElementById('user-email').textContent = currentUser.email;
+        }
+        
+        async function loadPosts() {
+            try {
+                const headers = {};
+                if (accessToken) {
+                    headers['Authorization'] = `Bearer ${accessToken}`;
+                }
+                
+                const response = await fetch('/api/posts', { headers });
+                if (response.ok) {
+                    const posts = await response.json();
+                    displayPosts(posts);
+                } else if (response.status === 401) {
+                    console.log('Authentication required to view posts');
+                    displayPosts([]);
+                }
+            } catch (error) {
+                console.error('Error loading posts:', error);
+            }
+        }
+        
+        async function displayPosts(posts) {
+            const container = document.getElementById('posts-container');
+            if (posts.length === 0) {
+                container.innerHTML = '<p>No posts yet. Create the first one!</p>';
+                return;
+            }
+            
+            let postsHtml = '';
+            for (const post of posts) {
+                let imageHtml = '';
+                if (post.imageKey) {
+                    try {
+                        const headers = {};
+                        if (accessToken) {
+                            headers['Authorization'] = `Bearer ${accessToken}`;
+                        }
+                        const imageResponse = await fetch(`/api/image/${post.imageKey}`, { headers });
+                        if (imageResponse.ok) {
+                            const imageData = await imageResponse.json();
+                            imageHtml = `<img src="${imageData.downloadUrl}" alt="${post.title}" onerror="this.style.display='none'">`;
+                        }
+                    } catch (error) {
+                        console.error('Error loading image:', error);
+                    }
+                }
+                
+                postsHtml += `
+                    <div class="post" id="post-${post.id}">
+                        ${imageHtml}
+                        <h3>${post.title}</h3>
+                        <div class="post-meta">By ${post.author} on ${new Date(post.createdAt).toLocaleString()}</div>
+                        <p>${post.content}</p>
+                        <div class="post-actions">
+                            <button class="edit-btn" onclick="editPost('${post.id}')">✏️ Edit</button>
+                            <button class="delete-btn" onclick="deletePost('${post.id}', '${post.title}')">🗑️ Delete</button>
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = postsHtml;
+        }
+        
+        async function createPost() {
+            const title = document.getElementById('post-title').value;
+            const content = document.getElementById('post-content').value;
+            const imageFile = document.getElementById('post-image').files[0];
+            
+            if (!title || !content) {
+                document.getElementById('post-error').textContent = 'Please fill in both title and content';
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('title', title);
+                formData.append('content', content);
+                if (imageFile) {
+                    formData.append('image', imageFile);
+                }
+                
+                const headers = {};
+                if (accessToken && accessToken !== 'demo-token') {
+                    headers['Authorization'] = `Bearer ${accessToken}`;
+                }
+                
+                const response = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    document.getElementById('post-title').value = '';
+                    document.getElementById('post-content').value = '';
+                    document.getElementById('post-image').value = '';
+                    document.getElementById('post-error').textContent = '';
+                    document.getElementById('post-success').textContent = 'Post created successfully!';
+                    setTimeout(() => document.getElementById('post-success').textContent = '', 3000);
+                    loadPosts();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('post-error').textContent = error.error || 'Failed to create post';
+                }
+            } catch (error) {
+                document.getElementById('post-error').textContent = 'Network error. Please try again.';
+            }
+        }
+        
+        async function deletePost(postId, postTitle) {
+            // Confirm deletion
+            if (!confirm(`Are you sure you want to delete "${postTitle}"?\n\nThis action cannot be undone. The post and its image will be permanently deleted.`)) {
+                return;
+            }
+            
+            try {
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                if (accessToken && accessToken !== 'demo-token') {
+                    headers['Authorization'] = `Bearer ${accessToken}`;
+                }
+                
+                const response = await fetch(`/api/posts/${postId}`, {
+                    method: 'DELETE',
+                    headers: headers
+                });
+                
+                if (response.ok) {
+                    // Remove post from DOM with animation
+                    const postElement = document.getElementById(`post-${postId}`);
+                    if (postElement) {
+                        postElement.style.transition = 'opacity 0.3s';
+                        postElement.style.opacity = '0';
+                        setTimeout(() => {
+                            postElement.remove();
+                            // Check if no posts left
+                            const container = document.getElementById('posts-container');
+                            if (container.children.length === 0) {
+                                container.innerHTML = '<p>No posts yet. Create the first one!</p>';
+                            }
+                        }, 300);
+                    }
+                    
+                    // Show success message
+                    document.getElementById('post-success').textContent = 'Post deleted successfully!';
+                    setTimeout(() => document.getElementById('post-success').textContent = '', 3000);
+                } else {
+                    const error = await response.json();
+                    alert(`Failed to delete post: ${error.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error deleting post:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+        
+        function editPost(postId) {
+            // Placeholder for edit functionality
+            alert(`Edit functionality for post ${postId} - Coming soon!`);
+        }
+    </script>
+</body>
+</html>

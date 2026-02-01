@@ -1,0 +1,7 @@
+{
+  "EksAutoModeStack": {
+    "ClusterArn": "arn:aws:eks:eu-north-1:861276113985:cluster/blog-eks-auto-cluster",
+    "ClusterName": "blog-eks-auto-cluster",
+    "ConfigCommand": "aws eks update-kubeconfig --name blog-eks-auto-cluster --region eu-north-1"
+  }
+}

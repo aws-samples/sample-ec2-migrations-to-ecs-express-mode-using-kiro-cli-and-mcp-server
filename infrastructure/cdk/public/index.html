@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog App - EC2 to ECS Migration Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .form-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-right: 0.5rem;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .posts-container {
+            display: grid;
+            gap: 1.5rem;
+        }
+        
+        .post {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .post img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .post-title {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+        
+        .post-content {
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+        
+        .post-meta {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 1rem;
+        }
+        
+        .post-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Blog Application</h1>
+        <p>EC2 to ECS Express Mode Migration Demo</p>
+    </header>
+
+    <div class="container">
+        <div class="form-container">
+            <h2>Create New Post</h2>
+            <form id="postForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="title">Title:</label>
+                    <input type="text" id="title" name="title" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="content">Content:</label>
+                    <textarea id="content" name="content" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="image">Image (optional):</label>
+                    <input type="file" id="image" name="image" accept="image/*">
+                </div>
+                
+                <button type="submit" id="submitBtn">Create Post</button>
+                <button type="button" id="cancelBtn" onclick="cancelEdit()" style="display: none;">Cancel</button>
+            </form>
+        </div>
+
+        <div id="message"></div>
+        
+        <div class="posts-container">
+            <h2>Blog Posts</h2>
+            <div id="postsContainer">
+                <div class="loading">Loading posts...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let editingPostId = null;
+
+        // Load posts on page load
+        document.addEventListener('DOMContentLoaded', loadPosts);
+
+        // Form submission
+        document.getElementById('postForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('title', document.getElementById('title').value);
+            formData.append('content', document.getElementById('content').value);
+            
+            const imageFile = document.getElementById('image').files[0];
+            if (imageFile) {
+                formData.append('image', imageFile);
+            }
+
+            try {
+                const url = editingPostId ? `/api/posts/${editingPostId}` : '/api/posts';
+                const method = editingPostId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    body: formData
+                });
+
+                if (response.ok) {
+                    showMessage(editingPostId ? 'Post updated successfully!' : 'Post created successfully!', 'success');
+                    document.getElementById('postForm').reset();
+                    cancelEdit();
+                    loadPosts();
+                } else {
+                    const error = await response.json();
+                    showMessage(error.error || 'Failed to save post', 'error');
+                }
+            } catch (error) {
+                showMessage('Network error: ' + error.message, 'error');
+            }
+        });
+
+        async function loadPosts() {
+            try {
+                const response = await fetch('/api/posts');
+                const posts = await response.json();
+                
+                const container = document.getElementById('postsContainer');
+                
+                if (posts.length === 0) {
+                    container.innerHTML = '<div class="loading">No posts found. Create your first post!</div>';
+                    return;
+                }
+                
+                container.innerHTML = posts.map(post => `
+                    <div class="post">
+                        ${post.imageUrl ? `<img src="${post.imageUrl}" alt="${post.title}">` : ''}
+                        <h3 class="post-title">${post.title}</h3>
+                        <div class="post-content">${post.content}</div>
+                        <div class="post-meta">
+                            Created: ${new Date(post.createdAt).toLocaleDateString()}
+                            ${post.updatedAt !== post.createdAt ? `| Updated: ${new Date(post.updatedAt).toLocaleDateString()}` : ''}
+                        </div>
+                        <div class="post-actions">
+                            <button onclick="editPost('${post.id}')">Edit</button>
+                            <button class="btn-danger" onclick="deletePost('${post.id}')">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                document.getElementById('postsContainer').innerHTML = 
+                    '<div class="error">Failed to load posts: ' + error.message + '</div>';
+            }
+        }
+
+        async function editPost(postId) {
+            try {
+                const response = await fetch(`/api/posts/${postId}`);
+                const post = await response.json();
+                
+                document.getElementById('title').value = post.title;
+                document.getElementById('content').value = post.content;
+                
+                editingPostId = postId;
+                document.getElementById('submitBtn').textContent = 'Update Post';
+                document.getElementById('cancelBtn').style.display = 'inline-block';
+                
+                // Scroll to form
+                document.querySelector('.form-container').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                showMessage('Failed to load post for editing', 'error');
+            }
+        }
+
+        function cancelEdit() {
+            editingPostId = null;
+            document.getElementById('submitBtn').textContent = 'Create Post';
+            document.getElementById('cancelBtn').style.display = 'none';
+            document.getElementById('postForm').reset();
+        }
+
+        async function deletePost(postId) {
+            if (!confirm('Are you sure you want to delete this post?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/posts/${postId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    showMessage('Post deleted successfully!', 'success');
+                    loadPosts();
+                } else {
+                    const error = await response.json();
+                    showMessage(error.error || 'Failed to delete post', 'error');
+                }
+            } catch (error) {
+                showMessage('Network error: ' + error.message, 'error');
+            }
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
