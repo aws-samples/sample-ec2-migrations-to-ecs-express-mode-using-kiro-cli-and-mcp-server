@@ -60,7 +60,6 @@ python migrate_to_ecs_express.py
 
 The project now supports end-to-end infrastructure management:
 
-- **MCP Server**: Deployed at `https://d1lx8mfyu4.execute-api.us-west-2.amazonaws.com/Prod`
 - **Auto-provisioning**: Creates ECR repositories and IAM roles automatically
 - **Complete cleanup**: Removes all resources including custom IAM roles
 - **Security**: Uses environment variables for API keys
@@ -75,7 +74,7 @@ The project now supports end-to-end infrastructure management:
 
 ## Architecture
 
-![Current Amazon EC2 Architecture](diagram_5dead411.png)
+![Current Amazon EC2 Architecture](EC2_Existing_Diagram.png)
 
 ## MCP Server Integration
 
