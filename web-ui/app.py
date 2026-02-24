@@ -20,6 +20,24 @@ import requests
 
 app = Flask(__name__)
 
+# AWS region allowlist for command injection prevention
+VALID_AWS_REGIONS = {
+    'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+    'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-north-1',
+    'ap-south-1', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3',
+    'ap-southeast-1', 'ap-southeast-2', 'ca-central-1', 'sa-east-1'
+}
+
+def validate_resource_name(name, resource_type='resource'):
+    """Validate resource names to prevent command injection"""
+    import re
+    # Allow alphanumeric, hyphens, underscores only (AWS naming convention)
+    if not re.match(r'^[a-zA-Z0-9_-]+$', name):
+        raise ValueError(f'Invalid {resource_type} name: {name}. Only alphanumeric, hyphens, and underscores allowed.')
+    if len(name) > 255:
+        raise ValueError(f'{resource_type} name too long: {name}')
+    return name
+
 # Configuration
 CONFIG = {
     'ecs_agent_arn': 'arn:aws:bedrock-agentcore:us-west-2:<AWS_ACCOUNT_ID>:runtime/ecs_deployment_agent-Kq38Lc3cm5',
@@ -425,6 +443,16 @@ def build_and_push_docker_image(app_name, region, app_path=None):
     import subprocess
     import os
     
+    # Security: Validate region against allowlist to prevent command injection
+    if region not in VALID_AWS_REGIONS:
+        return {'status': 'error', 'message': f'Invalid AWS region: {region}'}
+    
+    # Security: Validate app_name to prevent command injection
+    try:
+        validate_resource_name(app_name, 'app_name')
+    except ValueError as e:
+        return {'status': 'error', 'message': str(e)}
+    
     account_id = CONFIG['account_id']
     
     # Determine app path
@@ -464,9 +492,8 @@ def build_and_push_docker_image(app_name, region, app_path=None):
         
         # Get ECR login
         import shlex
+        # Security: Region validated against VALID_AWS_REGIONS allowlist above
         login_cmd = ["aws", "ecr", "get-login-password", "--region", region]
-        # Security: login_cmd constructed from static AWS CLI command
-        # Security: subprocess.run() uses list arguments (no shell=True) - safe from injection
         login_result = subprocess.run(login_cmd, capture_output=True, text=True)
         if login_result.returncode != 0:
             return {'status': 'error', 'message': f'ECR login failed: {login_result.stderr}'}
@@ -629,6 +656,10 @@ def ecs_list_services():
     data = request.json
     region = data.get('region', 'us-west-2')
     
+    # Security: Validate region to prevent command injection
+    if region not in VALID_AWS_REGIONS:
+        return jsonify({'status': 'error', 'message': f'Invalid AWS region: {region}'}), 400
+    
     try:
         prompt = f"List all ECS services in {region}"
         result = invoke_strands_agent(CONFIG['ecs_agent_arn'], prompt, CONFIG['agent_region'])
@@ -647,6 +678,16 @@ def ecs_deploy():
     memory = data.get('memory', CONFIG['default_memory'])
     port = data.get('port', int(CONFIG['app_port']))
     env_vars = data.get('env_vars', {})
+    
+    # Security: Validate inputs to prevent command injection
+    if region not in VALID_AWS_REGIONS:
+        return jsonify({'status': 'error', 'message': f'Invalid AWS region: {region}'}), 400
+    
+    try:
+        validate_resource_name(service_name, 'service_name')
+        validate_resource_name(app_name, 'app_name')
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
     
     try:
         # Step 1: Create ECR repository
@@ -697,6 +738,15 @@ def ecs_delete():
     service_name = data.get('service_name')
     region = data.get('region', 'us-west-2')
     
+    # Security: Validate inputs to prevent command injection
+    if region not in VALID_AWS_REGIONS:
+        return jsonify({'status': 'error', 'message': f'Invalid AWS region: {region}'}), 400
+    
+    try:
+        validate_resource_name(service_name, 'service_name')
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    
     try:
         # Security: This is an LLM prompt, not a SQL query - no injection risk
         prompt = f"Delete the ECS service named {service_name} in region {region}"
@@ -712,6 +762,16 @@ def eks_status():
     cluster_name = data.get('cluster_name')
     app_name = data.get('app_name')
     region = data.get('region')
+    
+    # Security: Validate inputs to prevent command injection
+    if region not in VALID_AWS_REGIONS:
+        return jsonify({'status': 'error', 'message': f'Invalid AWS region: {region}'}), 400
+    
+    try:
+        validate_resource_name(cluster_name, 'cluster_name')
+        validate_resource_name(app_name, 'app_name')
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
     
     try:
         result = invoke_mcp_tool(
@@ -735,6 +795,16 @@ def eks_delete():
     cluster_name = data.get('cluster_name')
     app_name = data.get('app_name')
     region = data.get('region')
+    
+    # Security: Validate inputs to prevent command injection
+    if region not in VALID_AWS_REGIONS:
+        return jsonify({'status': 'error', 'message': f'Invalid AWS region: {region}'}), 400
+    
+    try:
+        validate_resource_name(cluster_name, 'cluster_name')
+        validate_resource_name(app_name, 'app_name')
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
     
     try:
         result = invoke_mcp_tool(
@@ -768,6 +838,18 @@ def eks_deploy():
     service_account_name = data.get('service_account_name', f"{app_name}-sa")
     s3_bucket = data.get('s3_bucket')
     dynamodb_table = data.get('dynamodb_table')
+    
+    # Security: Validate inputs to prevent command injection
+    if region not in VALID_AWS_REGIONS:
+        return jsonify({'status': 'error', 'message': f'Invalid AWS region: {region}'}), 400
+    
+    try:
+        validate_resource_name(cluster_name, 'cluster_name')
+        validate_resource_name(app_name, 'app_name')
+        validate_resource_name(image_name, 'image_name')
+        validate_resource_name(service_account_name, 'service_account_name')
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
     
     try:
         account_id = CONFIG['account_id']
@@ -857,6 +939,17 @@ def eks_continue_deploy():
     role_arn = data.get('role_arn')
     service_account_name = data.get('service_account_name', f"{app_name}-sa")
     
+    # Security: Validate inputs to prevent command injection
+    if region not in VALID_AWS_REGIONS:
+        return jsonify({'status': 'error', 'message': f'Invalid AWS region: {region}'}), 400
+    
+    try:
+        validate_resource_name(cluster_name, 'cluster_name')
+        validate_resource_name(app_name, 'app_name')
+        validate_resource_name(service_account_name, 'service_account_name')
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    
     try:
         result = invoke_mcp_tool(
             CONFIG['eks_agent_arn'],
@@ -937,6 +1030,15 @@ def ecs_continue_deploy():
     memory = data.get('memory', CONFIG['default_memory'])
     port = data.get('port', int(CONFIG['app_port']))
     env_vars = data.get('env_vars', {})
+    
+    # Security: Validate inputs to prevent command injection
+    if region not in VALID_AWS_REGIONS:
+        return jsonify({'status': 'error', 'message': f'Invalid AWS region: {region}'}), 400
+    
+    try:
+        validate_resource_name(service_name, 'service_name')
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
     
     try:
         prompt = f"""The Docker image has been built and pushed to {image_uri}.
