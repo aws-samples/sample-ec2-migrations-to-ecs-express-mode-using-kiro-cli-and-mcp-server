@@ -38,8 +38,6 @@ The solution uses MCP (Model Context Protocol) to connect AI models with deploym
 
 ### Amazon ECS Express Mode Deployment
 
-![Amazon ECS Express Mode](docs/diagrams/Amazon ECS%20Express%20Mode.png)
-
 ECS Express Mode simplifies container deployments:
 - **No Cluster Management**: Automatic infrastructure provisioning
 - **Built-in Load Balancer**: ALB included by default
@@ -48,7 +46,7 @@ ECS Express Mode simplifies container deployments:
 
 ### Traditional Amazon EC2 Architecture (Before Migration)
 
-![Amazon EC2 Architecture](docs/diagrams/Amazon EC2%20Existing%20Diagram.png)
+![Amazon EC2 Architecture](docs/diagrams/EC2_Existing_Diagram.png)
 
 The legacy Amazon EC2 setup this solution replaces:
 - Manual server provisioning and configuration
@@ -375,9 +373,7 @@ Running Application (1-N replicas)
 
 ## 📚 Documentation
 
-- **[EKS Deployment Guide](EKS_DEPLOYMENT_GUIDE.md)** - Complete EKS deployment guide
-- **[V2 Deployment Success](docs/V2_DEPLOYMENT_SUCCESS.md)** - V2 agent deployment report
-- **[boto3 Implementation Guide](docs/BOTO3_IMPLEMENTATION_GUIDE.md)** - boto3 + kubernetes client guide
+Additional documentation available in the `docs/` directory.
 
 ## 🔑 Prerequisites
 
@@ -453,20 +449,8 @@ You are responsible for:
 - Regular security reviews and access audits
 - Application code security and vulnerability scanning
 
-**📋 Complete Security Documentation**: See [SECURITY_DOCUMENTATION.md](SECURITY_DOCUMENTATION.md) for:
-- Threat model and risk assessment
-- Amazon S3 security configuration (BPA, encryption, TLS)
-- Amazon DynamoDB encryption setup
-- IAM policy examples with least privilege
-- Key management strategy
-- Data classification and handling procedures
-- Container security implementation priorities
-- API security controls
-- Compliance considerations
-
 ## 📖 Learn More
 
-- **Security Documentation**: [SECURITY_DOCUMENTATION.md](SECURITY_DOCUMENTATION.md)
 - **AgentCore**: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 - **Amazon ECS**: https://docs.aws.amazon.com/AmazonECS/latest/userguide/
 - **Amazon EKS**: https://docs.aws.amazon.com/eks/latest/userguide/
@@ -478,4 +462,4 @@ You are responsible for:
 
 **Status:** ✅ Production ready with AgentCore EKS V2 Agent (boto3 + kubernetes client)
 
-**Legal**: © 2026 Amazon Web Services, Inc. or its affiliates. All rights reserved. This software is provided "AS IS" without warranty. See [SECURITY_DOCUMENTATION.md](SECURITY_DOCUMENTATION.md) for full legal disclaimer.
+**Legal**: © 2026 Amazon Web Services, Inc. or its affiliates. All rights reserved.
