@@ -12,32 +12,27 @@ Main deployment script that:
 - Deploys sample application to EC2
 - Configures load balancer and health checks
 - Validates deployment
+- Supports multi-region deployment (see `REGION_CONFIG.md`)
 
-#### `deploy_complete_ecs_infrastructure.py`
-Complete Amazon ECS deployment from scratch:
-- Creates ECR repository and IAM roles
-- Builds and pushes container image
-- Deploys Amazon ECS Express Mode service
-- Monitors deployment progress
+#### `deploy_eks_cluster.sh`
+EKS cluster deployment script:
+- Provisions EKS cluster infrastructure
+- Configures node groups and networking
 
-#### `migrate_to_ecs_express.py`
-EC2 to Amazon ECS migration orchestrator:
-- Uses MCP server for automation
-- Handles containerization process
-- Manages Amazon ECS deployment
-- Provides status updates
+#### `test_rest-api_server.py`
+REST API server testing and validation:
+- Tests REST API server endpoints
+- Validates deployment capabilities
 
-#### `test_mcp_server.py`
-MCP server testing and validation:
-- Tests all MCP server endpoints
-- Validates prerequisites
-- Checks deployment capabilities
+#### `REGION_CONFIG.md`
+Multi-region deployment configuration guide:
+- Region parameter usage for `deploy.sh`
+- CDK deployment per region
+- Current deployment details
 
-#### `set_mcp_env.sh`
-Environment setup script:
-- Sets MCP server URL and API key
-- Configures AWS region
-- Validates environment variables
+#### `eks-outputs.json`
+EKS deployment output configuration:
+- Stores EKS cluster outputs for reference
 
 ### Cleanup Scripts (`cleanup/`)
 
@@ -49,26 +44,21 @@ Dynamic Amazon ECS resource cleanup:
 - **Policy management**: Dynamically detaches all policies
 - **Fallback patterns**: Name-based matching as backup
 
-**Features:**
-- Discovers resources by tags first
-- Falls back to name patterns for compatibility
-- Handles all policy types (managed and inline)
-- Provides detailed logging
-- Skips non-project resources
+#### `legacy_destroy.sh`
+Legacy resource cleanup:
+- Cleans up older deployment resources
+- Fallback for resources not tagged with current conventions
 
 ## Usage
 
 ### Deployment
 ```bash
-# Set environment
+# Deploy infrastructure (default: eu-north-1)
 cd scripts/deployment
-source set_mcp_env.sh
-
-# Deploy infrastructure
 ./deploy.sh
 
-# Or migrate existing EC2
-python migrate_to_ecs_express.py
+# Deploy to specific region
+./deploy.sh us-west-2
 ```
 
 ### Cleanup
@@ -90,9 +80,3 @@ All scripts use consistent tagging:
 - Rollback capabilities where applicable
 - Detailed error reporting
 - Safe defaults
-
-### Validation
-- Prerequisites checking
-- Resource existence validation
-- Permission verification
-- Status monitoring

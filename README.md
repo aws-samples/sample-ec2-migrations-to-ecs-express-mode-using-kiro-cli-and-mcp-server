@@ -67,20 +67,28 @@ ec2-ecs-express-mode-using-mcp/
 │   ├── agent.py                        # 5 MCP tools for Amazon ECS deployment
 │   ├── update-permissions.sh           # Add Amazon ECS permissions
 │   └── requirements.txt                # strands, boto3
+├── web-ui/                             # AI-Powered Web UI (Flask)
+│   ├── app.py                          # Flask chat interface application
+│   └── templates/index.html            # Web UI frontend
 ├── infrastructure/
 │   ├── cdk/                            # CDK Amazon EC2 infrastructure (reference)
+│   ├── eks-auto-mode/                  # CDK EKS Auto Mode infrastructure
 │   └── rest-api-server/                # Legacy REST API (reference)
 ├── sample-application/                 # Demo Node.js blog app with Cognito
+├── simple-java-api/                    # Simple Java API sample application
 ├── scripts/
-│   ├── deployment/                     # Amazon EC2 deployment scripts
+│   ├── deployment/                     # Amazon EC2/EKS deployment scripts
 │   └── cleanup/                        # ⭐ Multi-region cleanup scripts
 ├── test-python-scripts/
 │   ├── test_eks_conversation.py        # ⭐ EKS deployment test (V2 Agent)
 │   ├── test_ecs_conversation.py        # Amazon ECS deployment test
-│   ├── test_v2_agent.py                # ⭐ V2 Agent testing
+│   ├── test_multi_task.py              # Multi-task deployment test
 │   ├── test_delete_eks_service_conversation.py  # ⭐ EKS delete test
 │   ├── test_delete_ecs_service_conversation.py  # ⭐ Amazon ECS delete test
+│   ├── test_delete_tools.py            # Delete tools test
 │   └── test_mcp_with_sigv4.py          # MCP SigV4 authentication test
+├── deploy_to_ecs.py                    # Standalone Amazon ECS deployment script
+├── kiro/mcp.json                       # Kiro CLI MCP configuration
 └── README.md                           # This file
 ```
 
@@ -231,7 +239,7 @@ aws cloudformation describe-stacks --stack-name CdkInfrastructureStack --region 
 
 # Update these files:
 # 1. sample-application/.env
-# 2. test_conversation.py (env_vars section)
+# 2. test_eks_conversation.py (env_vars section)
 # 3. test_multi_task.py (env_vars section)
 ```
 
@@ -397,14 +405,19 @@ All resources tagged with:
 ## 📋 Testing
 
 ```bash
-# Test V2 agent deployment
+# Test EKS agent deployment
 python3 test-python-scripts/test_eks_conversation.py
-
-# Test V2 agent tools
-python3 test-python-scripts/test_v2_agent.py
 
 # Test MCP authentication
 python3 test-python-scripts/test_mcp_with_sigv4.py
+
+# Test multi-task deployment
+python3 test-python-scripts/test_multi_task.py
+
+# Test delete operations
+python3 test-python-scripts/test_delete_eks_service_conversation.py
+python3 test-python-scripts/test_delete_ecs_service_conversation.py
+python3 test-python-scripts/test_delete_tools.py
 
 # Verify deployment
 kubectl get deployments,services,pods -n default
