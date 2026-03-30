@@ -86,18 +86,6 @@ export class CdkInfrastructureStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    // // Use default VPC
-    // const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', {
-    //   isDefault: true,
-    // });
-
-    // Always create a new VPC
-    // const vpc = new ec2.Vpc(this, 'BlogVpc', {
-    //   maxAzs: 2,
-    //   natGateways: 1  // Costs ~$32/month but more reliable
-    // });
-
-
     // Create a VPC when DefaultVPC is not available.
     // Usage: cdk deploy -c vpcMode="no_default_vpc"
     const vpcMode = this.node.tryGetContext('vpcMode');

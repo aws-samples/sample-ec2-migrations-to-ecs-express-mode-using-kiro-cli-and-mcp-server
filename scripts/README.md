@@ -53,12 +53,12 @@ Legacy resource cleanup:
 
 ### Deployment
 ```bash
-# Deploy infrastructure (default: eu-north-1)
+# Deploy infrastructure (default: eu-north-1, use the defaultVPC)
 cd scripts/deployment
 ./deploy.sh
 
-# Deploy to specific region
-./deploy.sh us-west-2
+# Deploy to specific region and deploy CDK provided VPC
+./deploy.sh us-west-2 no_default_vpc
 ```
 
 ### Cleanup

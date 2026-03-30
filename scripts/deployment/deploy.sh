@@ -11,14 +11,48 @@
 
 set -e
 
+# Check required tools
+echo "🔍 Checking required tools..."
+MISSING_TOOLS=()
+
+if ! command -v npm &> /dev/null; then
+    MISSING_TOOLS+=("npm")
+fi
+
+if ! command -v jq &> /dev/null; then
+    MISSING_TOOLS+=("jq")
+fi
+
+if ! command -v aws &> /dev/null; then
+    MISSING_TOOLS+=("aws")
+fi
+
+if [ ${#MISSING_TOOLS[@]} -ne 0 ]; then
+    echo "❌ Missing required tools: ${MISSING_TOOLS[*]}"
+    echo "Please install the missing tools and try again."
+    exit 1
+fi
+
+echo "✅ All required tools found (npm, jq, aws)"
+
 # Accept region as parameter, default to eu-north-1
 DEPLOY_REGION="${1:-eu-north-1}"
+VPC_MODE="${2}"  # If set to "no_default_vpc", creates a new VPC instead of using default
 
 echo "🚀 Starting deployment process..."
 echo "📍 Target region: $DEPLOY_REGION"
+if [ "$VPC_MODE" = "no_default_vpc" ]; then
+    echo "📍 VPC mode: Creating new VPC"
+else
+    echo "📍 VPC mode: Using default VPC"
+fi
 
-# Change to CDK directory
-cd "$(dirname "$0")/../../infrastructure/cdk"
+# Change to CDK directory - works regardless of where script is called from
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/../../infrastructure/cdk"
+
+echo "📦 Installing CDK dependencies..."
+npm install
 
 echo "📦 Building CDK project..."
 npm run build
@@ -26,17 +60,22 @@ npm run build
 echo "🏗️  Deploying CDK infrastructure to $DEPLOY_REGION..."
 export CDK_DEFAULT_REGION="$DEPLOY_REGION"
 export AWS_REGION="$DEPLOY_REGION"
-cdk deploy --region "$DEPLOY_REGION" --require-approval never --outputs-file ../../scripts/deployment/stack-outputs.json
+
+if [ "$VPC_MODE" = "no_default_vpc" ]; then
+    cdk deploy --region "$DEPLOY_REGION" -c vpcMode="no_default_vpc" --require-approval never --outputs-file ../../scripts/deployment/stack-outputs.json
+else
+    cdk deploy --region "$DEPLOY_REGION" --require-approval never --outputs-file ../../scripts/deployment/stack-outputs.json
+fi
 
 echo "📋 Extracting stack outputs..."
 cd ../../scripts/deployment
 
 # Extract values from CDK outputs
-USER_POOL_ID=$(jq -r '.CdkInfrastructureStack.UserPoolId' stack-outputs.json)
-CLIENT_ID=$(jq -r '.CdkInfrastructureStack.UserPoolClientId' stack-outputs.json)
-S3_BUCKET=$(jq -r '.CdkInfrastructureStack.S3BucketName' stack-outputs.json)
-DYNAMODB_TABLE=$(jq -r '.CdkInfrastructureStack.DynamoDBTableName' stack-outputs.json)
-INSTANCE_ID=$(jq -r '.CdkInfrastructureStack.SSMCommand' stack-outputs.json | grep -o 'i-[a-zA-Z0-9]*')
+USER_POOL_ID=$(jq -r '.BlogAppStack.UserPoolId' stack-outputs.json)
+CLIENT_ID=$(jq -r '.BlogAppStack.UserPoolClientId' stack-outputs.json)
+S3_BUCKET=$(jq -r '.BlogAppStack.S3BucketName' stack-outputs.json)
+DYNAMODB_TABLE=$(jq -r '.BlogAppStack.DynamoDBTableName' stack-outputs.json)
+INSTANCE_ID=$(jq -r '.BlogAppStack.SSMCommand' stack-outputs.json | grep -o 'i-[a-zA-Z0-9]*')
 
 # Auto-detect region from stack outputs (extract from S3 bucket name or User Pool ID)
 REGION=$(echo "$USER_POOL_ID" | cut -d'_' -f1)
@@ -47,21 +86,6 @@ echo "  Client ID: $CLIENT_ID"
 echo "  S3 Bucket: $S3_BUCKET"
 echo "  DynamoDB Table: $DYNAMODB_TABLE"
 echo "  Instance ID: $INSTANCE_ID"
-
-echo "🔧 Ensuring User Pool allows self-registration..."
-aws cognito-idp update-user-pool \
-    --user-pool-id "$USER_POOL_ID" \
-    --admin-create-user-config '{"AllowAdminCreateUserOnly":false,"UnusedAccountValidityDays":7}' \
-    --region "$REGION" > /dev/null
-echo "  ✅ Self-registration enabled"
-
-echo "🔧 Ensuring User Pool email verification is enabled..."
-aws cognito-idp update-user-pool \
-    --user-pool-id "$USER_POOL_ID" \
-    --auto-verified-attributes email \
-    --verification-message-template '{"DefaultEmailOption":"CONFIRM_WITH_CODE","EmailMessage":"Your verification code for the blog app is {####}","EmailSubject":"Verify your email for the blog app"}' \
-    --region "$REGION" > /dev/null
-echo "  ✅ Email verification enabled"
 
 echo "📝 Updating sample-application environment..."
 
@@ -157,28 +181,6 @@ aws ssm get-command-invocation \
     --query 'StandardOutputContent' \
     --output text
 
-echo "🔧 Fixing load balancer security group..."
-# Get ALB security group ID
-ALB_SG_ID=$(aws elbv2 describe-load-balancers \
-    --region "$REGION" \
-    --query "LoadBalancers[?contains(LoadBalancerName, 'CdkInf-BlogA')].SecurityGroups[0]" \
-    --output text)
-
-if [ -n "$ALB_SG_ID" ]; then
-    echo "  Found ALB Security Group: $ALB_SG_ID"
-    # Add egress rule for port 3000
-    aws ec2 authorize-security-group-egress \
-        --group-id "$ALB_SG_ID" \
-        --protocol tcp \
-        --port 3000 \
-        --cidr 0.0.0.0/0 \
-        --region "$REGION" 2>/dev/null || echo "  Egress rule already exists"
-    
-    echo "  ✅ ALB security group configured"
-else
-    echo "  ⚠️  Could not find ALB security group"
-fi
-
 echo "🔧 Ensuring application binds to IPv4..."
 # Fix IPv4 binding
 aws ssm send-command \
@@ -239,7 +241,7 @@ aws ssm get-command-invocation \
     --output text
 
 # Validate deployment
-APP_URL=$(jq -r '.CdkInfrastructureStack.ApplicationURL' stack-outputs.json 2>/dev/null)
+APP_URL=$(jq -r '.BlogAppStack.ApplicationURL' stack-outputs.json 2>/dev/null)
 if [ -n "$APP_URL" ]; then
     echo "🔍 Validating deployment..."
     
