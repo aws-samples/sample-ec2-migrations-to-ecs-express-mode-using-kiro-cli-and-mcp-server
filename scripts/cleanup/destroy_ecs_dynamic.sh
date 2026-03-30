@@ -17,7 +17,7 @@ echo ""
 
 # Step 1: Delete CloudFormation stacks first (they manage most resources)
 echo "🚫 Step 1: Deleting CloudFormation stacks..."
-STACKS=$(aws cloudformation list-stacks --region $REGION --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE --query 'StackSummaries[?contains(StackName, `blog`) || contains(StackName, `secure`) || contains(StackName, `alb-stack`) || contains(StackName, `ecs-express`)].StackName' --output text)
+STACKS=$(aws cloudformation list-stacks --region $REGION --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE --query 'StackSummaries[?contains(StackName, `blog`) || contains(StackName, `Blog`) || contains(StackName, `secure`) || contains(StackName, `alb-stack`) || contains(StackName, `ecs-express`)].StackName' --output text)
 
 if [ -n "$STACKS" ]; then
     for stack in $STACKS; do
