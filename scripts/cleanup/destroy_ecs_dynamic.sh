@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+# Removed set -e to allow script to continue on errors
+# Individual commands will handle errors gracefully
 
 # Default region, can be overridden
 REGION="${AWS_REGION:-eu-north-1}"
@@ -27,7 +28,9 @@ if [ -n "$STACKS" ]; then
     echo "⏳ Waiting for stacks to delete..."
     for stack in $STACKS; do
         echo "  Waiting for $stack..."
-        aws cloudformation wait stack-delete-complete --stack-name $stack --region $REGION 2>/dev/null || echo "  Stack $stack deletion completed or failed"
+        aws cloudformation wait stack-delete-complete --stack-name $stack --region $REGION 2>&1 || {
+            echo "  Stack $stack deletion completed or failed"
+        }
     done
     echo "✅ CloudFormation stacks deleted"
 else
@@ -37,7 +40,7 @@ fi
 # Step 2: Clean up any remaining ECS services
 echo ""
 echo "🚫 Step 2: Cleaning up remaining ECS services..."
-CLUSTERS=$(aws ecs list-clusters --region $REGION --query 'clusterArns[*]' --output text)
+CLUSTERS=$(aws ecs list-clusters --region $REGION --query 'clusterArns[*]' --output text 2>/dev/null || echo "")
 
 if [ -n "$CLUSTERS" ]; then
     for cluster_arn in $CLUSTERS; do
@@ -52,15 +55,15 @@ if [ -n "$CLUSTERS" ]; then
                 for service_arn in $services; do
                     service_name=$(basename $service_arn)
                     echo "  ⏳ Scaling down service: $service_name"
-                    aws ecs update-service --cluster $cluster_name --service $service_name --desired-count 0 --region $REGION >/dev/null
+                    aws ecs update-service --cluster $cluster_name --service $service_name --desired-count 0 --region $REGION >/dev/null 2>&1 || echo "  Failed to scale down $service_name"
                     
                     echo "  🗑️  Deleting service: $service_name"
-                    aws ecs delete-service --cluster $cluster_name --service $service_name --region $REGION >/dev/null
+                    aws ecs delete-service --cluster $cluster_name --service $service_name --region $REGION >/dev/null 2>&1 || echo "  Failed to delete $service_name"
                 done
             fi
             
             echo "  🗑️  Deleting cluster: $cluster_name"
-            aws ecs delete-cluster --cluster $cluster_name --region $REGION >/dev/null
+            aws ecs delete-cluster --cluster $cluster_name --region $REGION >/dev/null 2>&1 || echo "  Failed to delete cluster $cluster_name"
         fi
     done
     echo "✅ ECS services and clusters cleaned up"
