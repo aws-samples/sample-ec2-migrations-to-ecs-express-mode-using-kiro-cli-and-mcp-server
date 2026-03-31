@@ -7,6 +7,10 @@
 ehthumbs.db
 Thumbs.db
 *~
+*.tar.gz
+.kiro/
+
+sample-application/cloudformation-templates/
 
 # IDE and Editor Files
 .vscode/
@@ -89,6 +93,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
+.venv/
 
 # TypeScript (only in CDK infrastructure directory)
 infrastructure/cdk/**/*.js
@@ -176,3 +181,4 @@ deploy_to_ecs.py
 .bedrock_agentcore.yaml.backup
 holmesscan.json
 /flattened_project
+kiro/mcp.json

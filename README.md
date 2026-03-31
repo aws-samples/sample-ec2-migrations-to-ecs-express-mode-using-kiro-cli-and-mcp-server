@@ -234,7 +234,7 @@ This creates:
 
 ```bash
 # Get the outputs from CDK
-aws cloudformation describe-stacks --stack-name CdkInfrastructureStack --region eu-north-1 \
+aws cloudformation describe-stacks --stack-name BlogAppStack --region eu-north-1 \
   --query 'Stacks[0].Outputs' --output table
 
 # Update these files:

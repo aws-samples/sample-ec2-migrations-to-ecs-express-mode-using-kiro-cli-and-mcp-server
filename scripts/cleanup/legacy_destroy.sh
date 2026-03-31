@@ -2,26 +2,24 @@
 
 set -e
 
-# Default region, can be overridden
-REGION="${AWS_REGION:-eu-north-1}"
+# Accept region as parameter, default to eu-north-1
+DEPLOY_REGION="${1:-eu-north-1}"
 
-# Allow region override via command line
-if [ -n "$1" ]; then
-    REGION="$1"
-fi
+REGION=$DEPLOY_REGION
 
 echo "🗑️  Starting CDK infrastructure destruction..."
 echo "🌍 Region: $REGION"
 echo ""
 
 # Change to CDK directory
-cd "$(dirname "$0")/../../infrastructure/cdk"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/../../infrastructure/cdk"
 
 # Find CDK stack name dynamically
 echo "🔍 Finding CDK stacks in region $REGION..."
 CDK_STACKS=$(aws cloudformation list-stacks --region $REGION \
     --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
-    --query 'StackSummaries[?contains(StackName, `Cdk`) || contains(StackName, `CDK`)].StackName' \
+    --query 'StackSummaries[?contains(StackName, `BlogApp`)].StackName' \
     --output text)
 
 if [ -z "$CDK_STACKS" ]; then

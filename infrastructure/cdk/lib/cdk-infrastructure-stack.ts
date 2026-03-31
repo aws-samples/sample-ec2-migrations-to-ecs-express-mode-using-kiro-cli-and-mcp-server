@@ -86,10 +86,19 @@ export class CdkInfrastructureStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    // Use default VPC
-    const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', {
-      isDefault: true,
-    });
+    // Create a VPC when DefaultVPC is not available.
+    // Usage: cdk deploy -c vpcMode="no_default_vpc"
+    const vpcMode = this.node.tryGetContext('vpcMode');
+    const useDefaultVpc = vpcMode !== 'no_default_vpc';
+    
+    const vpc = useDefaultVpc 
+      ? ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true })
+      : new ec2.Vpc(this, 'NewVpc', { 
+        maxAzs: 2,
+        natGateways: 1
+       });
+
+
 
     // Security Group for EC2
     const webServerSG = new ec2.SecurityGroup(this, 'WebServerSecurityGroup', {
@@ -98,17 +107,7 @@ export class CdkInfrastructureStack extends cdk.Stack {
       allowAllOutbound: true,
     });
 
-    webServerSG.addIngressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.tcp(3000),
-      'Allow HTTP traffic from ALB'
-    );
-
-    webServerSG.addIngressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.tcp(22),
-      'Allow SSH access'
-    );
+    // Note: We'll add the ingress rule after creating the ALB security group
 
     // IAM Role for EC2
     const ec2Role = new iam.Role(this, 'BlogAppEC2Role', {
@@ -218,13 +217,48 @@ EOF`,
       securityGroup: webServerSG,
       role: ec2Role,
       userData,
-      keyName: undefined, // No SSH key needed, use SSM
+      keyPair: undefined, // No SSH key needed, use SSM
     });
+
+    // Security Group for ALB
+    const albSG = new ec2.SecurityGroup(this, 'ALBSecurityGroup', {
+      vpc,
+      description: 'Security group for Application Load Balancer',
+      allowAllOutbound: false, // We'll add specific egress rules
+    });
+
+    // Allow inbound HTTP from internet
+    albSG.addIngressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(80),
+      'Allow HTTP traffic from internet'
+    );
+
+    albSG.addIngressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(443),
+      'Allow HTTPS traffic from internet'
+    );
+
+    // Allow outbound to EC2 instances on port 3000
+    albSG.addEgressRule(
+      ec2.Peer.anyIpv4(),
+      ec2.Port.tcp(3000),
+      'Allow traffic to EC2 instances on port 3000'
+    );
+
+    // Now configure EC2 security group to accept traffic from ALB
+    webServerSG.addIngressRule(
+      albSG,
+      ec2.Port.tcp(3000),
+      'Allow HTTP traffic from ALB only'
+    );
 
     // Application Load Balancer
     const alb = new elbv2.ApplicationLoadBalancer(this, 'BlogAppALB', {
       vpc,
       internetFacing: true,
+      securityGroup: albSG,
     });
 
     // Target Group
