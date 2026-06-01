@@ -19,6 +19,9 @@
     "ts-node": "^10.9.2",
     "typescript": "~5.6.3"
   },
+  "overrides": {
+    "glob": "^13.0.0"
+  },
   "dependencies": {
     "aws-cdk-lib": "^2.257.0",
     "constructs": "^10.0.0"
