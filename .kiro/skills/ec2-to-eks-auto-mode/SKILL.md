@@ -1,14 +1,16 @@
 ---
 name: ec2-to-eks-auto-mode-migration
 description: >
-  Migrates Node.js applications from EC2 to Amazon EKS Auto Mode using the EKS
-  MCP server. Use when user says "migrate to EKS", "move from EC2 to Kubernetes",
-  "containerize for EKS", "deploy to EKS Auto Mode", "set up EKS cluster", or
-  "convert EC2 app to containers". Do NOT use for ECS migrations, Lambda migrations,
-  or general Kubernetes questions without migration intent.
+  Migrates any application running on EC2 to Amazon EKS Auto Mode using the EKS
+  MCP server. Supports any language/runtime (Node.js, Python, Java, Go, .NET, etc.).
+  Use when user says "migrate to EKS", "move from EC2 to Kubernetes",
+  "containerize for EKS", "deploy to EKS Auto Mode", "set up EKS cluster",
+  "convert EC2 app to containers", or "migrate my app to Kubernetes".
+  Do NOT use for ECS migrations, Lambda migrations, or general Kubernetes questions
+  without migration intent.
 metadata:
   author: aws-samples
-  version: 1.0.0
+  version: 1.1.0
   mcp-server: awslabs.eks-mcp-server
   category: migration
   tags: [eks, ec2, kubernetes, auto-mode, containerization, migration]
@@ -29,46 +31,127 @@ nodes automatically based on pod demand.
 - Follow phases sequentially. Never skip a gate.
 - If a gate fails, consult the Troubleshooting section before retrying.
 - Never guess parameters. Read them from prior step outputs or ask the user.
-- Use MCP tools when available instead of shell commands.
+- This skill is runtime-agnostic. Adapt Dockerfile patterns to the application's language.
+
+## Critical: MCP Tool Usage
+
+When this skill specifies an MCP tool (e.g., `manage_eks_stacks`, `generate_app_manifest`,
+`apply_yaml`, `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`), you MUST use that
+MCP tool. Do NOT substitute with AWS CLI commands, kubectl commands, or any other fallback.
+
+If an MCP tool is unavailable or fails:
+1. Report the exact error to the user.
+2. Ask the user to verify the MCP server is connected.
+3. Do NOT proceed by substituting a CLI equivalent.
+
+The MCP tools provide validated, consistent behavior. CLI fallbacks introduce the
+trial-and-error approach this skill is designed to eliminate.
 
 ## Phase 1: Analyze and Containerize
 
-### Step 1.1: Gather Application Facts
+### Step 1.1: Discover Application Profile
 
-Identify these from the source code:
-- Entry point (e.g., `server.js`, `app.js`)
-- Port (`process.env.PORT` or hardcoded)
-- Environment variables (grep for `process.env`)
-- AWS services used (DynamoDB, S3, SQS, etc.)
-- Health check endpoint path
+Inspect the EC2 application source and gather:
+
+| Fact | How to Find |
+|------|-------------|
+| Language/Runtime | File extensions, package files (package.json, requirements.txt, pom.xml, go.mod, *.csproj) |
+| Entry point | Start scripts, Procfile, main class, CMD in existing Dockerfile |
+| Port | Config files, environment variables, code (listen/bind calls) |
+| Environment variables | grep for env/os.environ/System.getenv/os.Getenv in source |
+| AWS services used | SDK imports (DynamoDB, S3, SQS, SNS, etc.) |
+| Health check endpoint | Routes like /health, /healthz, /status, /ping |
+| Build steps | Makefile, build scripts, package manager commands |
+| Static assets / volumes | Uploaded files, local storage paths |
+
+If no health check endpoint exists, ask the user to add one before proceeding.
 
 ### Step 1.2: Create Dockerfile
 
+Select the appropriate base image and build pattern for the runtime:
+
+**Node.js:**
 ```dockerfile
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
-
 FROM node:20-alpine
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY . .
-EXPOSE <PORT>
 USER node
-CMD ["node", "<entry-point>"]
 ```
 
-Rules:
-- Multi-stage build (smaller image)
-- `npm ci` not `npm install` (reproducible)
+**Python:**
+```dockerfile
+FROM python:3.12-slim AS builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+FROM python:3.12-slim
+WORKDIR /app
+COPY --from=builder /install /usr/local
+COPY . .
+USER nobody
+```
+
+**Java (Maven):**
+```dockerfile
+FROM maven:3.9-eclipse-temurin-21 AS builder
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline
+COPY src ./src
+RUN mvn package -DskipTests
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+COPY --from=builder /app/target/*.jar app.jar
+USER nobody
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+
+**Go:**
+```dockerfile
+FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o server .
+FROM alpine:3.19
+WORKDIR /app
+COPY --from=builder /app/server .
+USER nobody
+ENTRYPOINT ["./server"]
+```
+
+**.NET:**
+```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS builder
+WORKDIR /app
+COPY *.csproj .
+RUN dotnet restore
+COPY . .
+RUN dotnet publish -c Release -o /out
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY --from=builder /out .
+USER app
+ENTRYPOINT ["dotnet", "<AppName>.dll"]
+```
+
+Common rules for ALL runtimes:
+- Multi-stage build (minimize image size)
 - Non-root user (security)
-- Alpine base (minimal attack surface)
+- Copy dependency manifest first (layer caching)
+- Use slim/alpine base where possible
+- Add `EXPOSE <PORT>`
 
 ### Step 1.3: Create .dockerignore
 
+Adapt to the runtime. Always exclude:
 ```
-node_modules
 .git
 .env
 *.md
@@ -78,12 +161,22 @@ coverage/
 Dockerfile
 ```
 
+Runtime-specific exclusions:
+- Node.js: `node_modules`
+- Python: `__pycache__`, `.venv`, `*.pyc`
+- Java: `target/`
+- Go: vendor/ (if not vendoring)
+- .NET: `bin/`, `obj/`
+
 ### Step 1.4: Build and Test Locally
 
 ```bash
 docker build -t <app-name> .
-docker run -p <PORT>:<PORT> -e AWS_REGION=<region> -e DYNAMODB_TABLE=<table> -e S3_BUCKET=<bucket> <app-name>
-curl http://localhost:<PORT>/health
+docker run -p <PORT>:<PORT> \
+  -e <ENV_VAR_1>=<value> \
+  -e <ENV_VAR_2>=<value> \
+  <app-name>
+curl http://localhost:<PORT>/<health-path>
 ```
 
 ### GATE 1: Container health check returns 200. If not, fix before proceeding.
@@ -98,6 +191,8 @@ aws ecr get-login-password --region <region> | docker login --username AWS --pas
 docker build --platform linux/amd64 -t <account-id>.dkr.ecr.<region>.amazonaws.com/<app-name>:latest .
 docker push <account-id>.dkr.ecr.<region>.amazonaws.com/<app-name>:latest
 ```
+
+Note: Always build with `--platform linux/amd64` for EKS compatibility (even on ARM Macs).
 
 ### GATE 2: Image exists in ECR.
 ```bash
@@ -140,14 +235,16 @@ Status must be `CREATE_COMPLETE`.
 
 ### Step 4.1: Create Pod IAM Policy
 
-Create a policy with the same permissions the EC2 instance profile had.
-See `references/iam-policy-template.md` for the template.
+Create a policy matching the EC2 instance profile permissions.
+See `references/iam-policy-template.md` for common patterns.
+
+Identify which AWS services the app uses and grant least-privilege access.
 
 ```bash
 aws iam create-policy --policy-name <app-name>-pod-policy --policy-document file://policy.json
 ```
 
-### Step 4.2: Create Pod Role with EKS Pod Identity Trust
+### Step 4.2: Create Pod Role
 
 ```bash
 aws iam create-role --role-name <app-name>-pod-role --assume-role-policy-document '{
@@ -194,9 +291,10 @@ Use `generate_app_manifest` MCP tool:
 
 Add to the generated YAML:
 - `spec.template.spec.serviceAccountName: <app-name>-sa`
-- Environment variables under containers[0].env
-- Liveness probe: `httpGet /health` port `<PORT>`, initialDelaySeconds 10
-- Readiness probe: `httpGet /health` port `<PORT>`, initialDelaySeconds 5
+- All environment variables the app needs under `containers[0].env`
+- Liveness probe: `httpGet /<health-path>` port `<PORT>`, initialDelaySeconds appropriate for runtime (10s Node/Go/Python, 30s Java/.NET)
+- Readiness probe: `httpGet /<health-path>` port `<PORT>`, initialDelaySeconds 5
+- Resource requests/limits (see `references/manifest-patch.md`)
 
 See `references/manifest-patch.md` for the exact structure.
 
@@ -229,10 +327,10 @@ kubectl get svc <app-name> -o jsonpath='{.status.loadBalancer.ingress[0].hostnam
 
 Wait 2-3 minutes for ALB provisioning if empty.
 
-### Step 6.2: Test
+### Step 6.2: Test Health
 
 ```bash
-curl http://<lb-hostname>/health
+curl http://<lb-hostname>/<health-path>
 ```
 
 ### Step 6.3: If Failing, Check Logs
@@ -251,7 +349,7 @@ Only after Gate 6 passes and traffic is verified:
 1. Update DNS/routing to point to EKS load balancer
 2. Terminate EC2 instance
 3. Delete EC2 security groups and IAM instance profile
-4. Destroy CDK stack: `cdk destroy`
+4. Destroy infrastructure stack (e.g., `cdk destroy`, `terraform destroy`, or CloudFormation delete)
 
 ## Troubleshooting
 
@@ -260,38 +358,37 @@ Only after Gate 6 passes and traffic is verified:
 | Pods stuck Pending | `get_k8s_events` for Pod | Auto Mode provisioning nodes | Wait 2-3 min. If >5 min, check resource requests |
 | ImagePullBackOff | `get_k8s_events` for Pod | Wrong ECR URI or no access | Verify image URI matches ECR exactly |
 | CrashLoopBackOff | `get_pod_logs` with `previous: true` | App crash on startup | Check env vars, port mismatch, missing deps |
+| OOMKilled | Pod events | Memory limit too low | Increase resources.limits.memory |
 | Health check fail | Pod events | Wrong path or port in probe | Match probe config to actual health endpoint |
 | No LB hostname | Service events | ALB still provisioning | Wait 2-3 min. Check service type is LoadBalancer |
-| DynamoDB AccessDenied | App logs | Pod identity misconfigured | Verify SA name in deployment matches pod identity association |
+| AWS SDK AccessDenied | App logs | Pod identity misconfigured | Verify SA name matches pod identity association |
 | Nodes never appear | `get_eks_insights` | No workload scheduled | Deploy a pod first — Auto Mode is demand-driven |
+| Slow startup (Java/.NET) | Probe failures | initialDelaySeconds too low | Increase to 30-60s for JVM/.NET cold start |
 
 ## Examples
 
-### Example 1: Blog Application Migration
+### Example 1: Node.js Blog App
 
 User says: "Migrate my blog app from EC2 to EKS"
 
-Actions:
-1. Read app source to identify port (80), entry point (server.js), env vars (DYNAMODB_TABLE, S3_BUCKET)
-2. Create Dockerfile with port 80, node server.js
-3. Build and push to ECR
-4. Create EKS cluster with Auto Mode
-5. Set up pod identity for DynamoDB + S3 access
-6. Deploy with 2 replicas, internet-facing LB
-7. Verify health check at LB URL
+Profile: Node.js, port 80, uses DynamoDB + S3, health at /health
 
-Result: Application running on EKS with automatic scaling, no node management.
+### Example 2: Python Flask API
 
-### Example 2: API Service with Custom Domain
+User says: "Move my Python API to Kubernetes"
 
-User says: "Move my API from EC2 to Kubernetes with auto-scaling"
+Profile: Python 3.11, port 5000, uses SQS + DynamoDB, health at /healthz
 
-Actions:
-1. Analyze API (port 3000, uses Redis + DynamoDB)
-2. Containerize, push to ECR
-3. Create EKS cluster
-4. Configure pod identity for DynamoDB
-5. Deploy with readiness/liveness probes on /health
-6. Verify via LB hostname
+### Example 3: Java Spring Boot Service
 
-Result: API on EKS Auto Mode with pod-driven auto-scaling.
+User says: "Containerize my Java service for EKS"
+
+Profile: Java 21, port 8080, uses RDS (via Secrets Manager) + S3, health at /actuator/health
+Note: Needs 30s initialDelaySeconds for JVM warmup, 512Mi+ memory.
+
+### Example 4: Go Microservice
+
+User says: "Deploy my Go service to EKS Auto Mode"
+
+Profile: Go 1.22, port 8080, uses DynamoDB, health at /ping
+Note: Tiny image (~15MB), fast startup, can use low resource requests.
