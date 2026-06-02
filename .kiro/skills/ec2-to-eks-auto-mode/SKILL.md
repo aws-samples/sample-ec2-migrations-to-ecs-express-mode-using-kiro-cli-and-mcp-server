@@ -33,6 +33,27 @@ nodes automatically based on pod demand.
 - Never guess parameters. Read them from prior step outputs or ask the user.
 - This skill is runtime-agnostic. Adapt Dockerfile patterns to the application's language.
 
+## Critical: Region Consistency
+
+ALL resources MUST be created in the SAME region as the user's existing application stack.
+
+### Region Discovery (execute before Phase 1)
+
+1. Find the `BlogAppStack` CloudFormation stack by checking common regions:
+   ```bash
+   for region in us-east-1 us-west-2 eu-west-1 eu-north-1; do
+     aws cloudformation describe-stacks --stack-name BlogAppStack --region $region --query 'Stacks[0].StackStatus' --output text 2>/dev/null && echo "Found in: $region" && break
+   done
+   ```
+2. Store the region where `BlogAppStack` exists as `<TARGET_REGION>`.
+3. Extract stack outputs (S3 bucket, DynamoDB table, Cognito IDs) from `BlogAppStack` for use in Phase 5 environment variables:
+   ```bash
+   aws cloudformation describe-stacks --stack-name BlogAppStack --region <TARGET_REGION> --query 'Stacks[0].Outputs' --output json
+   ```
+4. Use `<TARGET_REGION>` for ALL subsequent operations: ECR, EKS cluster, IAM policy ARNs, Pod Identity associations, and `aws eks update-kubeconfig`.
+5. NEVER default to `us-east-1` or any hardcoded region. Always derive from `BlogAppStack`.
+6. If `BlogAppStack` is not found in any region, ASK the user for the correct region.
+
 ## Critical: MCP Tool Usage
 
 When this skill specifies an MCP tool (e.g., `manage_eks_stacks`, `generate_app_manifest`,
@@ -46,6 +67,17 @@ If an MCP tool is unavailable or fails:
 
 The MCP tools provide validated, consistent behavior. CLI fallbacks introduce the
 trial-and-error approach this skill is designed to eliminate.
+
+## Critical: AWS Knowledge MCP Server
+
+Use the `aws-knowledge-mcp-server` to fetch EKS best practices, documentation, and
+guidance at any phase. Specifically:
+- Before creating the cluster, search for current EKS Auto Mode best practices.
+- When configuring IAM Pod Identity, fetch latest documentation for correct trust policies.
+- When the Troubleshooting table below doesn't resolve an issue, search for additional known issues.
+- When making architecture decisions, consult AWS Well-Architected guidance for EKS.
+
+Always prefer up-to-date documentation from the knowledge server over cached knowledge.
 
 ## Phase 1: Analyze and Containerize
 
@@ -185,42 +217,62 @@ curl http://localhost:<PORT>/<health-path>
 
 ### Step 2.1: Create Repository and Push
 
+Create ECR in `<TARGET_REGION>` (the same region as the existing application stack).
+
 ```bash
-aws ecr create-repository --repository-name <app-name> --region <region>
-aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
-docker build --platform linux/amd64 -t <account-id>.dkr.ecr.<region>.amazonaws.com/<app-name>:latest .
-docker push <account-id>.dkr.ecr.<region>.amazonaws.com/<app-name>:latest
+aws ecr create-repository --repository-name <app-name> --region <TARGET_REGION>
+aws ecr get-login-password --region <TARGET_REGION> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<TARGET_REGION>.amazonaws.com
+docker build --platform linux/amd64 -t <account-id>.dkr.ecr.<TARGET_REGION>.amazonaws.com/<app-name>:latest .
+docker push <account-id>.dkr.ecr.<TARGET_REGION>.amazonaws.com/<app-name>:latest
 ```
 
 Note: Always build with `--platform linux/amd64` for EKS compatibility (even on ARM Macs).
 
 ### GATE 2: Image exists in ECR.
 ```bash
-aws ecr describe-images --repository-name <app-name> --region <region> --query 'imageDetails[0].imageTags'
+aws ecr describe-images --repository-name <app-name> --region <TARGET_REGION> --query 'imageDetails[0].imageTags'
 ```
 
 ## Phase 3: Create EKS Cluster
 
-### Step 3.1: Generate CloudFormation Template
+### Step 3.1: Determine Latest Kubernetes Version
+
+**CRITICAL**: The `manage_eks_stacks` template may have outdated `AllowedValues` for
+`KubernetesVersion`. You MUST look up the latest version before deploying.
+
+Use `aws-knowledge-mcp-server` `read_documentation` tool:
+- URL: `https://docs.aws.amazon.com/eks/latest/userguide/platform-versions.html`
+- Find the highest Kubernetes minor version listed (e.g., `1.35`)
+
+If the user requested "latest version", use this value. Never rely on the template's default.
+
+### Step 3.2: Generate CloudFormation Template
 
 Use `manage_eks_stacks` MCP tool:
 - `operation`: `generate`
 - `cluster_name`: `<app-name>-cluster`
-- `template_file`: `/tmp/<app-name>-eks-template.yaml`
 
-### Step 3.2: Deploy Cluster
+### Step 3.3: Patch Template Version
+
+Before deploying, modify the generated template content:
+1. Add the latest version (from Step 3.1) to `Parameters.KubernetesVersion.AllowedValues`
+2. Set `Parameters.KubernetesVersion.Default` to the latest version
+
+This ensures the cluster is created with the latest supported Kubernetes version.
+
+### Step 3.4: Deploy Cluster
 
 Use `manage_eks_stacks` MCP tool:
 - `operation`: `deploy`
 - `cluster_name`: `<app-name>-cluster`
-- `template_file`: `/tmp/<app-name>-eks-template.yaml`
+- `template_content`: the patched template from Step 3.3
 
 This takes 15-20 minutes.
 
-### Step 3.3: Update kubeconfig
+### Step 3.5: Update kubeconfig
 
 ```bash
-aws eks update-kubeconfig --name <app-name>-cluster --region <region>
+aws eks update-kubeconfig --name <app-name>-cluster --region <TARGET_REGION>
 ```
 
 ### GATE 3: Cluster is active.
@@ -266,12 +318,13 @@ aws eks create-pod-identity-association \
   --cluster-name <app-name>-cluster \
   --namespace default \
   --service-account <app-name>-sa \
-  --role-arn arn:aws:iam::<account-id>:role/<app-name>-pod-role
+  --role-arn arn:aws:iam::<account-id>:role/<app-name>-pod-role \
+  --region <TARGET_REGION>
 ```
 
 ### GATE 4: Pod identity association exists.
 ```bash
-aws eks list-pod-identity-associations --cluster-name <app-name>-cluster --query 'associations[0].associationId'
+aws eks list-pod-identity-associations --cluster-name <app-name>-cluster --region <TARGET_REGION> --query 'associations[0].associationId'
 ```
 
 ## Phase 5: Deploy Application
@@ -280,7 +333,7 @@ aws eks list-pod-identity-associations --cluster-name <app-name>-cluster --query
 
 Use `generate_app_manifest` MCP tool:
 - `app_name`: `<app-name>`
-- `image_uri`: `<account-id>.dkr.ecr.<region>.amazonaws.com/<app-name>:latest`
+- `image_uri`: `<account-id>.dkr.ecr.<TARGET_REGION>.amazonaws.com/<app-name>:latest`
 - `port`: `<PORT>`
 - `replicas`: `2`
 - `namespace`: `default`

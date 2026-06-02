@@ -2,7 +2,24 @@
   "name": "eks-migration",
   "description": "Deterministic EC2 to EKS Auto Mode migration agent. Follows skill phases with validation gates — no trial-and-error.",
   "prompt": "You are an EKS migration specialist. Load and follow the ec2-to-eks-auto-mode-migration skill EXACTLY. Each phase has a GATE — do NOT proceed until the gate passes. If a gate fails, consult the skill's Troubleshooting table. Never guess parameters. Never retry blindly. Ask the user for missing values.",
-  "tools": ["read", "write", "shell", "grep", "glob", "code", "use_aws"],
+  "mcpServers": {
+    "eks-mcp-server": {
+      "disabled": false,
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://eks-mcp.us-west-2.api.aws/mcp",
+        "--service",
+        "eks-mcp"
+      ]
+    },
+    "aws-knowledge-mcp-server": {
+      "url": "https://knowledge-mcp.global.api.aws",
+      "type": "http"
+    }
+  },
+  "tools": ["@eks-mcp-server","@aws-knowledge-mcp-server","read", "write", "shell", "grep", "glob", "code", "use_aws"],
   "allowedTools": ["read", "grep", "glob", "code"],
   "toolsSettings": {
     "shell": {
