@@ -1,7 +1,7 @@
 const express = require('express');
 const AWS = require('aws-sdk');
 const multer = require('multer');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID: uuidv4 } = require('crypto');
 const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
