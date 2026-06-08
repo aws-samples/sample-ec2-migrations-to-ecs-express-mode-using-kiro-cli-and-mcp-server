@@ -420,6 +420,59 @@ Only after Gate 6 passes and traffic is verified:
 3. Delete EC2 security groups and IAM instance profile
 4. Destroy infrastructure stack (e.g., `cdk destroy`, `terraform destroy`, or CloudFormation delete)
 
+## Cluster Deletion
+
+To delete the EKS cluster and its underlying infrastructure:
+
+### Using `manage_eks_stacks` (preferred)
+
+Use the `manage_eks_stacks` MCP tool:
+- `operation`: `delete`
+- `cluster_name`: `<app-name>-cluster`
+
+**Known limitation**: The `manage_eks_stacks` tool does NOT support a region parameter. It uses the default AWS region from your environment. If the cluster was created in a different region, the tool will fail with "Stack not found."
+
+### Fallback: Direct CloudFormation deletion (cross-region)
+
+If the MCP tool fails due to region mismatch, use the AWS CLI directly:
+
+```bash
+aws cloudformation delete-stack --stack-name eks-<app-name>-cluster-stack --region <TARGET_REGION>
+```
+
+Monitor deletion progress:
+```bash
+aws cloudformation describe-stacks --stack-name eks-<app-name>-cluster-stack --region <TARGET_REGION> --query 'Stacks[0].StackStatus'
+```
+
+Stack deletion typically takes 10–15 minutes and removes:
+- The EKS cluster and all workloads
+- The dedicated VPC (subnets, route tables, internet gateway)
+- Security groups
+- IAM roles created by the stack
+
+### Pre-deletion cleanup
+
+Before deleting the stack, remove any resources created outside CloudFormation to avoid `DELETE_FAILED`:
+1. Delete Kubernetes LoadBalancer services (which create AWS ALBs/NLBs):
+   ```bash
+   kubectl delete svc --all -n default
+   ```
+2. Delete Pod Identity associations:
+   ```bash
+   aws eks delete-pod-identity-association --cluster-name <app-name>-cluster --association-id <id> --region <TARGET_REGION>
+   ```
+3. Delete the IAM pod role and policy:
+   ```bash
+   aws iam detach-role-policy --role-name <app-name>-pod-role --policy-arn arn:aws:iam::<account-id>:policy/<app-name>-pod-policy
+   aws iam delete-role --role-name <app-name>-pod-role
+   aws iam delete-policy --policy-arn arn:aws:iam::<account-id>:policy/<app-name>-pod-policy
+   ```
+4. Delete the ECR repository:
+   ```bash
+   aws ecr delete-repository --repository-name <app-name> --force --region <TARGET_REGION>
+   ```
+
 ## Troubleshooting
 
 | Symptom | Diagnosis Tool | Root Cause | Fix |
