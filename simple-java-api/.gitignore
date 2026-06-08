@@ -1,6 +1,0 @@
-target/
-.mvn/
-*.class
-*.jar
-*.war
-.DS_Store
