@@ -182,3 +182,5 @@ deploy_to_ecs.py
 holmesscan.json
 /flattened_project
 
+scripts/deployment/eks-outputs.json
+scripts/deployment/stack-outputs.json
