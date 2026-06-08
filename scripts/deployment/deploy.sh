@@ -157,6 +157,9 @@ S3_BUCKET=$S3_BUCKET
 COGNITO_USER_POOL_ID=$USER_POOL_ID
 COGNITO_CLIENT_ID=$CLIENT_ID
 EOF\",
+        \"# Install Node.js 22 (required for multer 2.x compatibility)\",
+        \"curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash - && sudo yum install -y nodejs\",
+        \"echo \\\"Node.js version: \$(node --version)\\\"\",
         \"# Install dependencies and start application\",
         \"npm install\",
         \"echo 'Final file sizes:'\",
