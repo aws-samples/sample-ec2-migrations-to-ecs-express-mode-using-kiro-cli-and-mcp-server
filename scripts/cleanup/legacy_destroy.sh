@@ -74,8 +74,8 @@ for STACK_NAME in $CDK_STACKS; do
 done
 
 echo "🧹 Cleaning up local files..."
-cd ..
-rm -f stack-outputs.json
+cd "$SCRIPT_DIR/../deployment"
+rm -f stack-outputs.json stack-outputs-*.json
 rm -f app-deployment.tar.gz
 
 echo "✅ CDK infrastructure destruction complete!"
