@@ -1,82 +1,36 @@
 # Scripts
 
-Automation scripts for deployment, migration, and cleanup operations.
+Automation scripts for deployment and cleanup.
 
-## Structure
+## Deployment (`deployment/`)
 
-### Deployment Scripts (`deployment/`)
-
-#### `deploy.sh`
-Main deployment script that:
+### `deploy.sh`
+Deploys the initial EC2-based blog application:
 - Builds and deploys CDK infrastructure
-- Deploys sample application to EC2
-- Configures load balancer and health checks
-- Validates deployment
-- Supports multi-region deployment (see `REGION_CONFIG.md`)
+- Deploys sample application to EC2 via SSM
+- Configures environment variables from CloudFormation outputs
+- Validates deployment via health checks
 
-#### `deploy_eks_cluster.sh`
-EKS cluster deployment script:
-- Provisions EKS cluster infrastructure
-- Configures node groups and networking
-
-#### `test_rest-api_server.py`
-REST API server testing and validation:
-- Tests REST API server endpoints
-- Validates deployment capabilities
-
-#### `REGION_CONFIG.md`
-Multi-region deployment configuration guide:
-- Region parameter usage for `deploy.sh`
-- CDK deployment per region
-- Current deployment details
-
-#### `eks-outputs.json`
-EKS deployment output configuration:
-- Stores EKS cluster outputs for reference
-
-### Cleanup Scripts (`cleanup/`)
-
-#### `destroy_ecs_dynamic.sh`
-Dynamic Amazon ECS resource cleanup:
-- **Tag-based discovery**: Uses `ManagedBy=MCP-Server` tags
-- **Safe execution**: Only deletes project resources
-- **Comprehensive cleanup**: Amazon ECS, ALB, IAM, ECR, CloudWatch
-- **Policy management**: Dynamically detaches all policies
-- **Fallback patterns**: Name-based matching as backup
-
-#### `legacy_destroy.sh`
-Legacy resource cleanup:
-- Cleans up older deployment resources
-- Fallback for resources not tagged with current conventions
-
-## Usage
-
-### Deployment
 ```bash
-# Deploy infrastructure (default: eu-north-1, use the defaultVPC)
-cd scripts/deployment
-./deploy.sh
-
-# Deploy to specific region and deploy CDK provided VPC
-./deploy.sh us-west-2 no_default_vpc
+./deploy.sh              # Default: eu-north-1
+./deploy.sh us-west-2    # Specific region
+./deploy.sh us-west-2 no_default_vpc  # Create new VPC
 ```
 
-### Cleanup
+### `deploy_eks_cluster.sh`
+Deploys EKS Auto Mode cluster (alternative to using the Kiro skill's Phase 3):
+
 ```bash
-cd scripts/cleanup
-./destroy_ecs_dynamic.sh
+./deploy_eks_cluster.sh          # Default: eu-north-1
+./deploy_eks_cluster.sh us-west-2
 ```
 
-## Safety Features
+## Cleanup (`cleanup/`)
 
-### Tag-Based Resource Management
-All scripts use consistent tagging:
-- Only manages resources with `ManagedBy=MCP-Server`
-- Skips production or unrelated resources
-- Provides clear logging of actions
+### `legacy_destroy.sh`
+Removes the CDK-deployed EC2 infrastructure:
 
-### Error Handling
-- Graceful failure handling
-- Rollback capabilities where applicable
-- Detailed error reporting
-- Safe defaults
+```bash
+./legacy_destroy.sh              # Default region
+./legacy_destroy.sh us-west-2    # Specific region
+```
