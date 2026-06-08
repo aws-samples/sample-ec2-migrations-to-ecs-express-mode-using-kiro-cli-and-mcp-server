@@ -1,478 +1,128 @@
-# Amazon EC2 to Amazon ECS Migration with AgentCore MCP Server
+# Amazon EC2 Migration to Containers using Kiro CLI and MCP Servers
 
-Automated deployment of containerized applications to AWS Amazon ECS Express Mode and EKS using **custom MCP agents** hosted on **Amazon Bedrock AgentCore** (AWS-managed runtime) with AI-powered natural language interface.
+Automated migration of EC2 applications to containerized deployments on **Amazon ECS Express Mode** or **Amazon EKS Auto Mode** using Kiro CLI and MCP servers.
 
-![Web UI Dashboard](docs/diagrams/WebUi.png)
+## 📝 Blog Walkthroughs
 
-## 🎯 What's New
+This repository supports two blog posts. Start with the one matching your target:
 
-**Custom MCP Agents on AWS-Managed Runtime** - Your custom deployment agents run on Amazon Bedrock AgentCore's managed infrastructure, supporting multi-region deployments with full Amazon Cognito authentication and natural language commands.
+| Blog | Target | Key Files |
+|------|--------|-----------|
+| [EC2 to ECS Express Mode](https://aws.amazon.com/blogs/containers/migrate-amazon-ec2-to-ecs-express-mode-using-kiro-cli-and-mcp-servers/) | ECS Express Mode (Fargate) | `kiro/mcp.json` |
+| [EC2 to EKS Auto Mode](#) | EKS Auto Mode (Kubernetes) | `.kiro/skills/ec2-to-eks-auto-mode/`, `.kiro/agents/eks-migration.json` |
 
-**AI-Powered Web UI** - Chat interface for deploying applications using natural language. Just type "deploy my-app with 5 replicas" and let AI handle the rest.
+Both blogs use the same sample Node.js application and initial EC2 infrastructure.
 
 ## 🏗️ Architecture Overview
 
-### What's AWS-Managed vs Custom?
+### Initial Architecture (EC2)
 
-| Component | Type | Description |
-|-----------|------|-------------|
-| **Amazon Bedrock AgentCore** | AWS-Managed | Serverless runtime that hosts your agents |
-| **MCP Agents (Python code)** | Custom | Your deployment logic in `agentcore-*-runtime/` folders |
-| **MCP Tools** | Custom | Python functions decorated with `@tool` |
-| **Web UI** | Custom | Flask application in `web-ui/` |
-| **LLM (Claude 3.5 Sonnet)** | AWS-Managed | Via Amazon Bedrock |
+![EC2 Architecture](docs/diagrams/EC2_Existing_Diagram.png)
 
-**In Simple Terms:**
-- AWS provides the **infrastructure** (AgentCore runtime, Bedrock LLM)
-- You provide the **logic** (MCP agents, tools, web UI)
-- You deploy your custom agents to AWS-managed infrastructure
+Traditional VM deployment: Node.js app on EC2 behind ALB, with Amazon Cognito authentication, Amazon S3 for images, and Amazon DynamoDB for metadata. Deployed via AWS CDK.
 
-### Model Context Protocol (MCP) Integration
+### Target Architectures
 
-![MCP Architecture](docs/diagrams/MCP.png)
+**ECS Express Mode** — Serverless containers with automatic load balancer integration and auto-scaling.
 
-The solution uses MCP (Model Context Protocol) to connect AI models with deployment tools:
-- **LLM Router**: Claude 3.5 Sonnet analyzes natural language commands
-- **MCP Agents**: Expose deployment tools as standardized functions
-- **Automated Workflows**: From Docker build to production deployment
+![ECS Architecture](docs/diagrams/ECS%20Express%20Mode.png)
 
-### Amazon ECS Express Mode Deployment
-
-ECS Express Mode simplifies container deployments:
-- **No Cluster Management**: Automatic infrastructure provisioning
-- **Built-in Load Balancer**: ALB included by default
-- **Auto-scaling**: Configure min/max tasks with one parameter
-- **80% Less Configuration**: Compared to traditional ECS
-
-### Traditional Amazon EC2 Architecture (Before Migration)
-
-![Amazon EC2 Architecture](docs/diagrams/EC2_Existing_Diagram.png)
-
-The legacy Amazon EC2 setup this solution replaces:
-- Manual server provisioning and configuration
-- Complex deployment scripts
-- Limited scalability
-- Higher operational overhead
+**EKS Auto Mode** — Managed Kubernetes with automatic node provisioning, scaling, and patching.
 
 ## 📁 Project Structure
 
 ```
-ec2-ecs-express-mode-using-mcp/
-├── agentcore-eks-runtime/              # ⭐ AgentCore EKS Agent (V2 - boto3 + k8s)
-│   ├── agent.py                        # 5 MCP tools for EKS deployment
-│   ├── add-eks-permissions.sh          # Add EKS/ECR/IAM permissions
-│   ├── add-eks-cluster-access.sh       # Add role to EKS cluster
-│   └── requirements.txt                # boto3, kubernetes, mcp
-├── agentcore-agent-runtime/            # AgentCore Amazon ECS Agent
-│   ├── agent.py                        # 5 MCP tools for Amazon ECS deployment
-│   ├── update-permissions.sh           # Add Amazon ECS permissions
-│   └── requirements.txt                # strands, boto3
-├── web-ui/                             # AI-Powered Web UI (Flask)
-│   ├── app.py                          # Flask chat interface application
-│   └── templates/index.html            # Web UI frontend
+├── .kiro/
+│   ├── agents/eks-migration.json       # Kiro agent config for EKS blog (MCP servers)
+│   └── skills/ec2-to-eks-auto-mode/    # 7-phase EKS migration skill
+├── kiro/
+│   └── mcp.json                        # Kiro MCP config for ECS blog
+├── sample-application/                 # Node.js blog app (used by both blogs)
+│   ├── Dockerfile
+│   ├── src/server.js
+│   └── public/index.html
 ├── infrastructure/
-│   ├── cdk/                            # CDK Amazon EC2 infrastructure (reference)
-│   ├── eks-auto-mode/                  # CDK EKS Auto Mode infrastructure
-│   └── rest-api-server/                # Legacy REST API (reference)
-├── sample-application/                 # Demo Node.js blog app with Cognito
-├── simple-java-api/                    # Simple Java API sample application
+│   ├── cdk/                            # CDK stack for initial EC2 deployment
+│   └── eks-auto-mode/                  # CDK stack for EKS Auto Mode cluster
 ├── scripts/
-│   ├── deployment/                     # Amazon EC2/EKS deployment scripts
-│   └── cleanup/                        # ⭐ Multi-region cleanup scripts
-├── test-python-scripts/
-│   ├── test_eks_conversation.py        # ⭐ EKS deployment test (V2 Agent)
-│   ├── test_ecs_conversation.py        # Amazon ECS deployment test
-│   ├── test_multi_task.py              # Multi-task deployment test
-│   ├── test_delete_eks_service_conversation.py  # ⭐ EKS delete test
-│   ├── test_delete_ecs_service_conversation.py  # ⭐ Amazon ECS delete test
-│   ├── test_delete_tools.py            # Delete tools test
-│   └── test_mcp_with_sigv4.py          # MCP SigV4 authentication test
-├── deploy_to_ecs.py                    # Standalone Amazon ECS deployment script
-├── kiro/mcp.json                       # Kiro CLI MCP configuration
-└── README.md                           # This file
+│   ├── deployment/deploy.sh            # Deploy initial EC2 app
+│   ├── deployment/deploy_eks_cluster.sh # Deploy EKS cluster (alternative to skill)
+│   └── cleanup/legacy_destroy.sh       # Remove EC2 infrastructure
+└── docs/
+    ├── ENV_SETUP.md
+    └── diagrams/
 ```
 
-## 🔄 AgentCore Runtime Protocols
+## 🚀 Quick Start
 
-This project includes **two different AgentCore runtimes** with different protocols and invocation methods:
+### Prerequisites
 
-### 1. AgentCore EKS Runtime (V2 - MCP Protocol)
-**Location:** `agentcore-eks-runtime/`
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) 2.15.0+
+- [Kiro CLI](https://kiro.dev/docs/cli/) 1.25.0+
+- [AWS CDK v2](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html) 2.238.0+
+- [Node.js](https://nodejs.org/) 20+
+- [Docker](https://www.docker.com/) or [Finch](https://github.com/runfinch/finch)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) (EKS blog only)
 
-**Protocol:** Model Context Protocol (MCP) with FastMCP
-- **Transport:** Streamable HTTP (SSE - Server-Sent Events)
-- **Authentication:** AWS SigV4 signing
-- **Invocation:** Direct HTTP POST to AgentCore endpoint
-- **Dependencies:** `mcp`, `boto3`, `kubernetes`
-
-**Invocation Example:**
-```python
-# MCP JSON-RPC 2.0 format
-mcp_request = {
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "tools/call",
-    "params": {
-        "name": "deploy_to_eks_with_irsa",
-        "arguments": {...}
-    }
-}
-
-# POST to: https://bedrock-agentcore.{region}.amazonaws.com/runtimes/{agent_arn}/invocations
-```
-
-**Key Features:**
-- Pure Python SDK implementation (boto3 + kubernetes client)
-- No CLI dependencies (no AWS CLI, kubectl, Docker CLI needed in container)
-- Stateless HTTP transport
-- Real-time streaming responses via SSE
-
-### 2. AgentCore Amazon ECS Runtime (Strands Protocol)
-**Location:** `agentcore-agent-runtime/`
-
-**Protocol:** Strands (AWS proprietary)
-- **Transport:** HTTP with Strands-specific format
-- **Authentication:** AWS SigV4 signing
-- **Invocation:** Strands conversation API
-- **Dependencies:** `strands`, `boto3`
-
-**Invocation Example:**
-```python
-# Strands conversation format
-from strands import Agent
-
-agent = Agent(agent_id="...", region="...")
-response = agent.invoke(
-    action="deploy_ecs_express_service",
-    parameters={...}
-)
-```
-
-**Key Features:**
-- Conversation-based interaction model
-- Built-in state management
-- Optimized for Amazon ECS deployments
-
-### Protocol Comparison
-
-| Feature | EKS Runtime (MCP) | Amazon ECS Runtime (Strands) |
-|---------|-------------------|----------------------|
-| Protocol | MCP (Open Standard) | Strands (AWS Proprietary) |
-| Transport | SSE (Streamable HTTP) | HTTP |
-| Format | JSON-RPC 2.0 | Strands-specific |
-| Dependencies | mcp, boto3, kubernetes | strands, boto3 |
-| CLI Tools | Not needed | Not needed |
-| State | Stateless | Stateful conversations |
-| Streaming | Yes (SSE) | No |
-
-### When to Use Which?
-
-**Use EKS Runtime (MCP)** when:
-- Deploying to Kubernetes/EKS
-- Need pure Python SDK implementation
-- Want open standard protocol (MCP)
-- Require real-time streaming responses
-
-**Use Amazon ECS Runtime (Strands)** when:
-- Deploying to Amazon ECS Express Mode
-- Need conversation-based interactions
-- Want AWS-optimized protocol
-- Prefer stateful agent interactions
-
-## 🚀 Quick Start - EKS Deployment
-
-### Prerequisites Setup
-
-Before deploying, ensure you have:
-1. **AWS CLI** configured with appropriate credentials
-2. **Docker** installed and running
-3. **Python 3.10+** with required packages
-4. **kubectl** configured for EKS access
-5. **EKS Cluster** pre-configured and running (e.g., `ec2-eks-migration`)
-6. **CDK infrastructure** deployed (for Amazon Cognito, Amazon DynamoDB, Amazon S3)
-
-#### EKS Cluster Prerequisites
-
-Your EKS cluster must be configured with:
-- **Authentication Mode**: `API` (EKS Access Entries) or `API_AND_CONFIG_MAP`
-- **OIDC Provider**: Associated with the cluster for IRSA support
-- **Node Group**: At least one node group with sufficient capacity
-- **VPC Configuration**: Proper networking and security groups
-
-**Check your cluster:**
-```bash
-# Verify cluster exists
-aws eks describe-cluster --name ec2-eks-migration --region eu-north-1
-
-# Check authentication mode
-aws eks describe-cluster --name ec2-eks-migration --region eu-north-1 \
-  --query 'cluster.accessConfig.authenticationMode' --output text
-
-# Update kubeconfig
-aws eks update-kubeconfig --name ec2-eks-migration --region eu-north-1
-
-# Verify kubectl access
-kubectl get nodes
-```
-
-### 1. Deploy CDK Infrastructure (One-time)
+### Step 1: Deploy the Initial EC2 Application
 
 ```bash
-cd infrastructure/cdk
-npm install
-npm run build
-cdk deploy --region eu-north-1
+git clone https://github.com/aws-samples/sample-ec2-migrations-to-ecs-express-mode-using-kiro-cli-and-mcp-server
+cd sample-ec2-migrations-to-ecs-express-mode-using-kiro-cli-and-mcp-server
+
+cd infrastructure/cdk && npm install && cd ../..
+./scripts/deployment/deploy.sh <your-region>
 ```
 
-This creates:
-- Amazon Cognito User Pool and Client
-- Amazon DynamoDB table (blog-posts)
-- Amazon S3 bucket for images
-- IAM roles
+### Step 2: Follow Your Target Blog
 
-**Important:** After CDK deployment, update the following files with the new resource IDs:
-
+**For ECS Express Mode:**
 ```bash
-# Get the outputs from CDK
-aws cloudformation describe-stacks --stack-name BlogAppStack --region eu-north-1 \
-  --query 'Stacks[0].Outputs' --output table
-
-# Update these files:
-# 1. sample-application/.env
-# 2. test_eks_conversation.py (env_vars section)
-# 3. test_multi_task.py (env_vars section)
+kiro-cli
 ```
+Then follow [the ECS blog](https://aws.amazon.com/blogs/containers/migrate-amazon-ec2-to-ecs-express-mode-using-kiro-cli-and-mcp-servers/) from Step 3 onwards.
 
-**Required values to update:**
-- `COGNITO_USER_POOL_ID` (e.g., <COGNITO_USER_POOL_ID>)
-- `COGNITO_CLIENT_ID` (e.g., <COGNITO_CLIENT_ID>)
-- `Amazon S3_BUCKET` (e.g., blog-images-private-ACCOUNT-REGION)
-- `DYNAMODB_TABLE` (e.g., blog-posts)
-
-### 2. Deploy AgentCore EKS Agent
-
+**For EKS Auto Mode:**
 ```bash
-cd agentcore-eks-runtime
-
-# Deploy to AWS (one-time)
-agentcore launch
-
-# Add EKS permissions to AgentCore role (auto-detects role and region)
-bash add-eks-permissions.sh
-
-# Or specify role and region explicitly
-bash add-eks-permissions.sh AmazonBedrockAgentCoreSDKRuntime-us-west-2-XXXXX us-west-2
-
-# Add AgentCore role to EKS cluster access (auto-detects role)
-bash add-eks-cluster-access.sh ec2-eks-migration eu-north-1
-
-# Or specify all parameters explicitly
-bash add-eks-cluster-access.sh ec2-eks-migration eu-north-1 AmazonBedrockAgentCoreSDKRuntime-us-west-2-XXXXX
-
-# Verify
-agentcore status
+kiro-cli chat --agent eks-migration
 ```
+Then follow the EKS blog's migration prompt.
 
-**Output:** Agent ARN like `arn:aws:bedrock-agentcore:us-west-2:ACCOUNT:runtime/eks_deployment_agent-XXXXX`
+## 🧹 Clean Up
 
-**Important Scripts:**
-- `add-eks-permissions.sh` - Adds EKS, ECR, IAM, CodeBuild permissions to AgentCore execution role
-  - Usage: `./add-eks-permissions.sh [ROLE_NAME] [REGION]`
-  - Auto-detects role if not specified
-- `add-eks-cluster-access.sh` - Adds AgentCore role to EKS cluster with admin access
-  - Usage: `./add-eks-cluster-access.sh CLUSTER_NAME [REGION] [ROLE_NAME]`
-  - Auto-detects role if not specified
+### ECS Express Mode
+Use Kiro CLI to delete the ECS service, or run `cdk destroy` in the infrastructure directory.
 
-### 3. Build and Push Docker Image
-
+### EKS Auto Mode
 ```bash
-cd sample-application
-
-# Build image
-docker build --platform linux/amd64 -t sample-application:latest .
-
-# Login to ECR
-aws ecr get-login-password --region eu-north-1 | \
-  docker login --username AWS --password-stdin ACCOUNT.dkr.ecr.eu-north-1.amazonaws.com
-
-# Create ECR repository
-aws ecr create-repository --repository-name sample-application --region eu-north-1 || true
-
-# Tag and push
-docker tag sample-application:latest ACCOUNT.dkr.ecr.eu-north-1.amazonaws.com/sample-application:latest
-docker push ACCOUNT.dkr.ecr.eu-north-1.amazonaws.com/sample-application:latest
+# Via Kiro CLI (uses manage_eks_stacks MCP tool)
+# Or manually:
+cd infrastructure/eks-auto-mode && cdk destroy
 ```
 
-### 4. Deploy Application to EKS
-
+### EC2 Infrastructure (both blogs)
 ```bash
-# Deploy to eu-north-1 (or any region)
-python3 test-python-scripts/test_eks_conversation.py
-```
-
-This automatically:
-1. ✅ Sets up OIDC provider for EKS
-2. ✅ Creates IRSA role with Amazon S3/Amazon DynamoDB permissions
-3. ✅ Builds and pushes Docker image to ECR
-4. ✅ Deploys to EKS with service account
-5. ✅ Creates LoadBalancer endpoint
-6. ✅ Verifies deployment
-
-### 5. Verify Deployment
-
-```bash
-# Check deployment status
-kubectl get deployments -n default
-
-# Check pods
-kubectl get pods -l app=blog-app-eks-v3
-
-# Get service endpoint
-kubectl get service blog-app-eks-v3 -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-```
-
-## 🔧 AgentCore MCP Tools (EKS V2 Agent)
-
-| Tool | Purpose |
-|------|---------|
-| `setup_oidc_provider` | Setup OIDC identity provider for EKS |
-| `create_irsa_role` | Create IAM role for service account (IRSA) |
-| `build_image_with_codebuild` | Build Docker image using AWS CodeBuild |
-| `deploy_to_eks_with_irsa` | Deploy application to EKS with IRSA |
-| `get_deployment_status` | Check deployment status |
-| `delete_eks_deployment` | Delete EKS deployment, service, and service account |
-
-## 🔧 AgentCore Tools (Amazon ECS Agent)
-
-| Tool | Purpose |
-|------|---------|
-| `create_ecr_repository` | Create ECR repository for container images |
-| `deploy_ecs_express_service` | Deploy application to Amazon ECS Express Mode |
-| `list_ecs_services` | List all Amazon ECS services across clusters |
-| `check_service_status` | Check Amazon ECS service deployment status |
-| `scale_service` | Scale Amazon ECS service to desired task count |
-| `delete_ecs_service` | Delete Amazon ECS service and AWS CloudFormation stack |
-
-## 📊 Architecture
-
-```
-AgentCore EKS Agent (AWS-managed)
-    ↓
-5 MCP Tools (boto3 + kubernetes client)
-    ↓
-ECR Repository + Container Image
-    ↓
-EKS Cluster + IRSA + LoadBalancer
-    ↓
-Running Application (1-N replicas)
-```
-
-## 🎯 Key Features
-
-- **AgentCore EKS Agent**: AWS-managed runtime with boto3 + kubernetes client
-- **5 Automated Tools**: Complete EKS deployment workflow
-- **IRSA Support**: IAM Roles for Service Accounts
-- **Multi-Replica Support**: Deploy 1-N replicas
-- **Environment Variables**: Full Amazon Cognito + Amazon DynamoDB + Amazon S3 configuration
-- **IAM Authentication**: Secure by default (SigV4)
-- **CloudWatch Integration**: Full observability
-- **Multi-Region**: Deploy to any AWS region
-- **Production Ready**: Security hardened containers
-
-## 📚 Documentation
-
-Additional documentation available in the `docs/` directory.
-
-## 🔑 Prerequisites
-
-- **AWS CLI** configured with appropriate credentials
-- **Python 3.10+** with boto3, kubernetes client
-- **Docker** installed and running
-- **kubectl** configured for EKS access
-- **EKS Cluster** pre-configured (e.g., `ec2-eks-migration` in `eu-north-1`)
-- **bedrock-agentcore-starter-toolkit** installed:
-  ```bash
-  pip install bedrock-agentcore-starter-toolkit
-  ```
-
-## 🏷️ Resource Tagging
-
-All resources tagged with:
-- `Project: EKS-Express-Migration`
-- `ManagedBy: AgentCore`
-- `Environment: Demo`
-
-## 📋 Testing
-
-```bash
-# Test EKS agent deployment
-python3 test-python-scripts/test_eks_conversation.py
-
-# Test MCP authentication
-python3 test-python-scripts/test_mcp_with_sigv4.py
-
-# Test multi-task deployment
-python3 test-python-scripts/test_multi_task.py
-
-# Test delete operations
-python3 test-python-scripts/test_delete_eks_service_conversation.py
-python3 test-python-scripts/test_delete_ecs_service_conversation.py
-python3 test-python-scripts/test_delete_tools.py
-
-# Verify deployment
-kubectl get deployments,services,pods -n default
-aws eks describe-cluster --name ec2-eks-migration --region eu-north-1
-```
-
-## 🧹 Cleanup
-
-```bash
-# Delete Kubernetes resources
-kubectl delete deployment,service,serviceaccount blog-app-eks-v3
-
-# Delete ECR repository
-aws ecr delete-repository --repository-name blog-app-eks-v3 --region eu-north-1 --force
-
-# Delete IRSA role
-aws iam delete-role-policy --role-name blog-app-eks-v3-irsa-role --policy-name blog-app-eks-v3-permissions
-aws iam delete-role --role-name blog-app-eks-v3-irsa-role
+./scripts/cleanup/legacy_destroy.sh <your-region>
 ```
 
 ## 🔐 Security
 
-This project follows AWS security recommended practices and the [AWS Shared Responsibility Model](https://aws.amazon.com/compliance/shared-responsibility-model/).
+See [CONTRIBUTING](CONTRIBUTING.md) for security issue reporting. This project follows [AWS Shared Responsibility Model](https://aws.amazon.com/compliance/shared-responsibility-model/) best practices:
 
-### Security Features
-- ✅ Non-root container execution
-- ✅ Health checks for automatic recovery
-- ✅ IAM roles for service accounts (IRSA)
-- ✅ Least privilege IAM policies
-- ✅ Encryption at rest (Amazon S3, Amazon DynamoDB)
-- ✅ TLS/HTTPS enforcement
-- ✅ Block Public Access for Amazon S3
-- ✅ CloudTrail logging enabled
-- ✅ No hardcoded credentials
-
-### Customer Security Responsibilities
-You are responsible for:
-- Configuring IAM policies and roles
-- Enabling encryption for Amazon S3 and Amazon DynamoDB
-- Securing API endpoints with authentication
-- Managing credentials using AWS Secrets Manager
-- Regular security reviews and access audits
-- Application code security and vulnerability scanning
+- Non-root container execution
+- IAM least-privilege policies
+- Health checks for automatic recovery
+- No hardcoded credentials
 
 ## 📖 Learn More
 
-- **AgentCore**: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
-- **Amazon ECS**: https://docs.aws.amazon.com/AmazonECS/latest/userguide/
-- **Amazon EKS**: https://docs.aws.amazon.com/eks/latest/userguide/
-- **IRSA**: https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html
-- **MCP Protocol**: https://modelcontextprotocol.io/
-- **AWS Security Best Practices**: https://aws.amazon.com/architecture/security-identity-compliance/
+- [Amazon ECS Express Mode](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-overview.html)
+- [Amazon EKS Auto Mode](https://docs.aws.amazon.com/eks/latest/userguide/automode.html)
+- [AWS MCP Server](https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html)
+- [ECS MCP Server](https://awslabs.github.io/mcp/servers/ecs-mcp-server)
+- [EKS MCP Server](https://awslabs.github.io/mcp/servers/eks-mcp-server)
+- [Kiro CLI](https://kiro.dev/cli/)
 
 ---
 
-**Status:** ✅ Production ready with AgentCore EKS V2 Agent (boto3 + kubernetes client)
-
-**Legal**: © 2026 Amazon Web Services, Inc. or its affiliates. All rights reserved.
+© 2026 Amazon Web Services, Inc. or its affiliates. All rights reserved.

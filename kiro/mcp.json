@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "aws-mcp-server": {
+      "url": "https://mcp.us-east-1.api.aws",
+      "type": "http"
+    },
+    "ecs-mcp-server": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["awslabs.ecs-mcp-server@latest"]
+    }
+  }
+}
