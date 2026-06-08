@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/infrastructure/cdk"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/infrastructure/eks-auto-mode"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/sample-application"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
