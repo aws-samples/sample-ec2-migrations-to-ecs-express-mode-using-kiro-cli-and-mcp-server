@@ -39,20 +39,36 @@ ALL resources MUST be created in the SAME region as the user's existing applicat
 
 ### Region Discovery (execute before Phase 1)
 
-1. Find the `BlogAppStack` CloudFormation stack by checking common regions:
+1. Find the `BlogAppStack` CloudFormation stack by checking all AWS regions:
    ```bash
-   for region in us-east-1 us-west-2 eu-west-1 eu-north-1; do
+   for region in us-east-1 us-east-2 us-west-1 us-west-2 ca-central-1 ca-west-1 eu-west-1 eu-west-2 eu-west-3 eu-central-1 eu-central-2 eu-north-1 eu-south-1 eu-south-2 ap-east-1 ap-south-1 ap-south-2 ap-southeast-1 ap-southeast-2 ap-southeast-3 ap-southeast-4 ap-southeast-5 ap-northeast-1 ap-northeast-2 ap-northeast-3 sa-east-1 af-south-1 me-south-1 me-central-1 il-central-1; do
      aws cloudformation describe-stacks --stack-name BlogAppStack --region $region --query 'Stacks[0].StackStatus' --output text 2>/dev/null && echo "Found in: $region" && break
    done
    ```
 2. Store the region where `BlogAppStack` exists as `<TARGET_REGION>`.
-3. Extract stack outputs (S3 bucket, DynamoDB table, Cognito IDs) from `BlogAppStack` for use in Phase 5 environment variables:
+3. Extract stack outputs **LIVE from CloudFormation** (do NOT use cached JSON files — they may be stale):
    ```bash
    aws cloudformation describe-stacks --stack-name BlogAppStack --region <TARGET_REGION> --query 'Stacks[0].Outputs' --output json
    ```
+   Required outputs to capture:
+   - `S3BucketName` → use in env var `S3_BUCKET` and IAM policy S3 resource ARN
+   - `DynamoDBTableName` → use in env var `DYNAMODB_TABLE` and IAM policy DynamoDB resource ARN
+   - `UserPoolId` → use in env var `COGNITO_USER_POOL_ID` and IAM policy Cognito resource ARN
+   - `UserPoolClientId` → use in env var `COGNITO_CLIENT_ID`
 4. Use `<TARGET_REGION>` for ALL subsequent operations: ECR, EKS cluster, IAM policy ARNs, Pod Identity associations, and `aws eks update-kubeconfig`.
 5. NEVER default to `us-east-1` or any hardcoded region. Always derive from `BlogAppStack`.
 6. If `BlogAppStack` is not found in any region, ASK the user for the correct region.
+
+### Critical: IAM Policy Resource ARNs
+
+When creating the Pod IAM policy (Phase 4), ALL resource ARNs MUST use `<TARGET_REGION>`.
+A common failure is region mismatch in ARNs (e.g., policy says `ap-southeast-1` but
+resources are in `ap-southeast-2`), which causes `AccessDeniedException` at runtime.
+
+**Always verify**: the region in every ARN in the policy matches `<TARGET_REGION>`:
+- `arn:aws:dynamodb:<TARGET_REGION>:<ACCOUNT>:table/<TABLE>`
+- `arn:aws:s3:::<BUCKET>` (S3 is global but bucket name includes region)
+- `arn:aws:cognito-idp:<TARGET_REGION>:<ACCOUNT>:userpool/<POOL_ID>`
 
 ## Critical: MCP Tool Usage
 
@@ -415,6 +431,8 @@ Only after Gate 6 passes and traffic is verified:
 | Health check fail | Pod events | Wrong path or port in probe | Match probe config to actual health endpoint |
 | No LB hostname | Service events | ALB still provisioning | Wait 2-3 min. Check service type is LoadBalancer |
 | AWS SDK AccessDenied | App logs | Pod identity misconfigured | Verify SA name matches pod identity association |
+| AWS SDK AccessDenied (DynamoDB/S3/Cognito) | App logs show `AccessDeniedException` | IAM policy resource ARNs have wrong region | Check every ARN in the pod policy uses `<TARGET_REGION>`, not a different region. Update policy with `aws iam create-policy-version` |
+| Cognito "User pool client does not exist" | App logs or UI error | Stale/incorrect Cognito Client ID | Re-extract `UserPoolClientId` LIVE from `BlogAppStack` outputs — do not trust cached JSON files |
 | Nodes never appear | `get_eks_insights` | No workload scheduled | Deploy a pod first — Auto Mode is demand-driven |
 | Slow startup (Java/.NET) | Probe failures | initialDelaySeconds too low | Increase to 30-60s for JVM/.NET cold start |
 

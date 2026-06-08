@@ -84,3 +84,5 @@ Replace placeholders with actual values. Only include statements for services yo
 - `sts:TagSession` is required alongside `sts:AssumeRole`
 - Always scope resources to specific ARNs — never use `*`
 - Copy permissions from the existing EC2 instance profile as baseline
+- **CRITICAL**: All `<REGION>` placeholders MUST be replaced with the actual `<TARGET_REGION>` from BlogAppStack. A region mismatch (e.g., `ap-southeast-1` vs `ap-southeast-2`) causes `AccessDeniedException` at runtime.
+- Always derive resource values (table name, bucket name, user pool ID) from LIVE CloudFormation stack outputs, not from cached files
