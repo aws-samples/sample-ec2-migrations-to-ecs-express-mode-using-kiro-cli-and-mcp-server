@@ -181,4 +181,4 @@ deploy_to_ecs.py
 .bedrock_agentcore.yaml.backup
 holmesscan.json
 /flattened_project
-kiro/mcp.json
+
