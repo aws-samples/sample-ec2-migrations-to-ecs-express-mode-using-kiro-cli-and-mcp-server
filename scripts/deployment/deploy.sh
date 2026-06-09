@@ -35,8 +35,14 @@ fi
 
 echo "✅ All required tools found (npm, jq, aws)"
 
-# Accept region as parameter, default to eu-north-1
-DEPLOY_REGION="${1:-eu-north-1}"
+# Accept region as parameter (required)
+if [ -z "$1" ]; then
+    echo "❌ Region argument is required."
+    echo "Usage: $0 <aws-region>"
+    echo "Example: $0 us-west-2"
+    exit 1
+fi
+DEPLOY_REGION="$1"
 VPC_MODE="${2}"  # If set to "no_default_vpc", creates a new VPC instead of using default
 
 echo "🚀 Starting deployment process..."

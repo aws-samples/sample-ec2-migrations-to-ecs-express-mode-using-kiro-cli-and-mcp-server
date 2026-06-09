@@ -120,11 +120,11 @@ Select the appropriate base image and build pattern for the runtime:
 
 **Node.js:**
 ```dockerfile
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY . .
@@ -249,7 +249,16 @@ Note: Always build with `--platform linux/amd64` for EKS compatibility (even on 
 aws ecr describe-images --repository-name <app-name> --region <TARGET_REGION> --query 'imageDetails[0].imageTags'
 ```
 
-## Phase 3: Create EKS Cluster
+## Phase 3: Create EKS Auto Mode Cluster
+
+**Pre-condition (MUST pass before proceeding):**
+- Determine the region of the existing CloudFormation stack (from Step 2 deployment output)
+- Verify that `AWS_DEFAULT_REGION` or the `--region` parameter passed to `manage_eks_stacks` matches this region exactly
+- If mismatched, STOP and prompt the user to correct the region before continuing
+
+**Action:** Use `manage_eks_stacks` MCP tool to create the EKS Auto Mode cluster in the SAME region as the existing stack.
+
+**Gate:** CloudFormation status is CREATE_COMPLETE AND cluster region matches existing stack region.
 
 ### Step 3.1: Determine Latest Kubernetes Version
 
