@@ -9,7 +9,7 @@ This repository supports two blog posts. Start with the one matching your target
 | Blog | Target | Key Files |
 |------|--------|-----------|
 | [EC2 to ECS Express Mode](https://aws.amazon.com/blogs/containers/migrate-amazon-ec2-to-ecs-express-mode-using-kiro-cli-and-mcp-servers/) | ECS Express Mode (Fargate) | `kiro/mcp.json` |
-| [EC2 to EKS Auto Mode](#) | EKS Auto Mode (Kubernetes) | `.kiro/skills/ec2-to-eks-auto-mode/`, `.kiro/agents/eks-migration.json` |
+| [EC2 to EKS Auto Mode](https://aws.amazon.com/blogs/containers/migrate-amazon-ec2-to-eks-auto-mode-using-kiro-cli-and-mcp-servers/) | EKS Auto Mode (Kubernetes) | `.kiro/skills/ec2-to-eks-auto-mode/`, `.kiro/agents/eks-migration.json` |
 
 Both blogs use the same sample Node.js application and initial EC2 infrastructure.
 
