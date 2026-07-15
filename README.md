@@ -23,11 +23,10 @@ Traditional VM deployment: Node.js app on EC2 behind ALB, with Amazon Cognito au
 
 ### Target Architectures
 
-**ECS Express Mode** — Serverless containers with automatic load balancer integration and auto-scaling.
-
-![ECS Architecture](docs/diagrams/ECS%20Express%20Mode.png)
-
 **EKS Auto Mode** — Managed Kubernetes with automatic node provisioning, scaling, and patching.
+
+![EKS Architecture](docs/diagrams/eks_target_arch.png)
+
 
 ## 📁 Project Structure
 
